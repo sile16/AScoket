@@ -1,0 +1,32 @@
+#######################################
+# Syntax Coloring Map For LCD_I2C
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+LCD_I2C	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+clear	KEYWORD2
+init    KEYWORD2
+home	KEYWORD2
+print	KEYWORD2
+println KEYWORD2
+setCursor	KEYWORD2
+setBacklight KEYWORD2
+
+#######################################
+# Instances (KEYWORD2)
+#######################################
+
+LCD KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
