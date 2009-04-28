@@ -279,31 +279,31 @@ void   loop()                     // run over and over again
 
 
 
-//  Wire.beginTransmission(TP1_ADDR);
-//  Wire.send(tempByte);
-//  Wire.endTransmission();
+  Wire.beginTransmission(TP1_ADDR);
+  Wire.send(tempByte);
+  Wire.endTransmission();
   
-//  Wire.requestFrom(TP1_ADDR,2);
-//  curr_temp_hi = Wire.receive();
-//  curr_temp_lo = ((word)(Wire.receive() >> 4) * 625) / 100;
+  Wire.requestFrom(TP1_ADDR,2);
+  curr_temp_hi = Wire.receive();
+  curr_temp_lo = ((word)(Wire.receive() >> 4) * 625) / 100;
 
-//  Serial.print("   Temp: ");
-//  Serial.print(curr_temp_hi,DEC);
-//  Serial.print(".");
-//  Serial.print(curr_temp_lo,DEC);
+  Serial.print("   Temp: ");
+  Serial.print(curr_temp_hi,DEC);
+  Serial.print(".");
+  Serial.print(curr_temp_lo,DEC);
   
   // Read scale voltage value from a2d
-//  Wire.requestFrom(A2D_ADDR,2);
-//  scale_volts = (word)Wire.receive() << 8;
-//  scale_volts += Wire.receive();
+  Wire.requestFrom(A2D_ADDR,2);
+  scale_volts = (word)Wire.receive() << 8;
+  scale_volts += Wire.receive();
   
   // Setup for next read
-//  Wire.beginTransmission(A2D_ADDR);
-//  Wire.send(A2D_CONFIG);
-//  Wire.endTransmission();
+  Wire.beginTransmission(A2D_ADDR);
+  Wire.send(A2D_CONFIG);
+  Wire.endTransmission();
   
-// Serial.print("  Scale: ");
-// Serial.println(scale_volts,DEC);
+ Serial.print("  Scale: ");
+ Serial.println(scale_volts,DEC);
   //count1++;
   
  }
@@ -329,7 +329,7 @@ void   loop()                     // run over and over again
 void showMenu(int state){
   
   char buf[32];  //Buffer for LCD string output
-  char buf2[] = "X=Bacc   aet=O";  //Hoping it cuts off a little on memory??
+  char buf2[] = "X=Back   set=O";  //Hoping it cuts off a little on memory??
   char compIcon = ' ';               //Compressor Icon either on (*) or off ( )
 
 
