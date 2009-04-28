@@ -1,6 +1,7 @@
 #include <LCD_I2C.h>
 #include <stdio.h>
 #include <Wire.h>
+#include <EEPROM.h>
 
 #include <avr/interrupt.h>
 #include <avr/io.h>
@@ -52,8 +53,8 @@ static int stateMenu[6][5] = {{0,3,0,1,0},  //Screen: Idle
 static int currState = 0;
 static int prevState = currState;
 static boolean compPower = true;
-static int kegTemp = 34;
-static int newKegTemp = kegTemp;
+
+static int newKegTemp = 43;
 static int kegPercent = 69;
 static int kegWt = 148;
 static int kegPints = 201;
@@ -62,6 +63,11 @@ static int buttonPressed = 0;
 static byte prevButtonTransientState = 0;
 static byte currButtonState=0;    //Current button state plus bit 4 used to keep track of transient changes. BUTTONS_CHANGED_FLAG
 
+// persistent variable to store between power outage
+static struct{
+   byte kegTemp;
+   byte unit;
+} persist;
 
 
 
@@ -106,6 +112,8 @@ void setup()                    // run once, when the sketch starts
   pinMode(RIGHT_BUTTON_PIN, INPUT);
   pinMode(COMPRESSOR_PIN, OUTPUT);
  
+  //Load persistent variable from EEPROM into persist struct.
+  loadPersist();
  
   Serial.begin(115200);                    // connect to the serial port
   Serial.println("Kegger Begin");
@@ -338,7 +346,7 @@ void showMenu(int state){
         compIcon = ' ';
       
       //Generate strings for LCD output
-      sprintf(buf," %d%cF  %c  %d%c",kegTemp,(char)0xDF,compIcon,kegPercent,(char)0x25);
+      sprintf(buf," %d%cF  %c  %d%c",persist.kegTemp,(char)0xDF,compIcon,kegPercent,(char)0x25);
       LCD.setCursor(0,0);
       LCD.print(buf);
 
@@ -353,7 +361,7 @@ void showMenu(int state){
      * SET TEMP         *
      ********************/
     case 1:
-      sprintf(buf,"SET TEMP [%d]",kegTemp);
+      sprintf(buf,"SET TEMP [%d]",persist.kegTemp);
       LCD.setCursor(0,0);
       LCD.print(buf);
       LCD.setCursor(0,1);
@@ -398,7 +406,9 @@ void showMenu(int state){
       LCD.setCursor(0,1);
       LCD.print("                ");
       
-      if (prevState == 2) kegTemp = newKegTemp;
+      if (prevState == 2) persist.kegTemp = newKegTemp;
+      
+      savePersist();
       
       delay(3000);
       currState = 0;
@@ -427,4 +437,20 @@ void showMenu(int state){
   
 }//showMenu()
 
+
+//Load persistent variable
+void loadPersist()
+{
+     for(tempByte=0; tempByte < sizeof(persist) ; tempByte++) {
+        ((byte*)&persist)[tempByte] = EEPROM.read(tempByte);
+     }
+}
+
+//Save persistent variables
+void savePersist()
+{
+     for(tempByte=0; tempByte < sizeof(persist) ; tempByte++) {
+       EEPROM.write(tempByte, ((byte*)&persist)[tempByte]);
+     }
+}
 
