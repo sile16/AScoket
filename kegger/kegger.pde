@@ -43,6 +43,7 @@
 //          stateMenu[0][2] is ptr to state when RIGHT is pressed
 //          stateMenu[0][3] is ptr to state when DOWN is pressed
 //    NOTE: stateMenu[0][4] is ptr to state when LEFT is pressed
+
 static int stateMenu[][4] = {{3,0,1,0},  //Screen 0: Idle
                               {0,2,6,0},  //Screen 1: Set Temp
                               {2,4,2,1},  //Screen 2:   Set Temp 2
@@ -62,7 +63,7 @@ static int newKegTemp = 43;
 static int kegPercent = 69;
 static int kegWt = 148;
 static int kegPints = 201;
-static int buttonPressed = 0;
+static int buttonPressed = 255;
 
 static byte prevButtonTransientState = 0;
 static byte currButtonState=0;    //Current button state plus bit 4 used to keep track of transient changes. BUTTONS_CHANGED_FLAG
@@ -75,6 +76,8 @@ static struct{
   
    byte kegTemp;
    boolean useMetric;
+   
+   byte contrast;
 } persist;
 
 
@@ -88,20 +91,17 @@ ISR(TIMER2_OVF_vect) {  //Every 4 ms
   TCNT2 = INIT_TIMER_COUNT;   //sets the starting value of the timer to 6 so we get 250 counts before overflow of our 8 bit counter
   
   timer_count++;
-  timer_status |= 1;
+  timer_status |= 1;   //Turn on flag for Timer1 4ms
   
-  if(((timer_count+3) % 5) == 0)   //20ms
-  {
-   timer_status |= 2;
+  if(((timer_count+3) % 5) == 0) {  //20ms
+   timer_status |= 2;  //Turn on flag for Timer2 20ms
   }
   
-  if((timer_count % 250) == 0)   //1s
-  {
-    timer_status |= 4;
+  if((timer_count % 250) == 0) {  //1s
+    timer_status |= 4;  //Turn on flag for Timer3 1s
     timer_count=0;
-    //digitalWrite(LED_STATUS1_PIN, ! digitalRead(LED_STATUS1_PIN));
     //Do it directly so no function calls from ISR
-    PORTB ^= ( 0x01 << 0);  //Arduino pin 8
+    PORTB ^= ( 0x01 << 0);  //Flash LED on Arduino pin 8 on Atmega328
   }
   
 }  //ISR(TIME2_OVF_vect)
@@ -111,7 +111,7 @@ ISR(TIMER2_OVF_vect) {  //Every 4 ms
 void setup()                    // run once, when the sketch starts
 {
 
-  pinMode(LED_PIN, OUTPUT);      // sets the digital pin as output
+  pinMode(LED_PIN, OUTPUT);              // sets the digital pin as output
   pinMode(LED_STATUS1_PIN, OUTPUT);      // sets the digital pin as output
   pinMode(LED_STATUS2_PIN, OUTPUT);      // sets the digital pin as output
   pinMode(UP_BUTTON_PIN, INPUT);
@@ -124,22 +124,22 @@ void setup()                    // run once, when the sketch starts
   loadPersist();
   
   //network setup
- persist.mac[0] = 0xDE; 
- persist.mac[1] = 0xAD;
- persist.mac[2] = 0xBE;
- persist.mac[3] = 0xEF;
- persist.mac[4] = 0xFE;
- persist.mac[5] = 0xED;
+  persist.mac[0] = 0xDE; 
+  persist.mac[1] = 0xAD;
+  persist.mac[2] = 0xBE;
+  persist.mac[3] = 0xEF;
+  persist.mac[4] = 0xFE;
+  persist.mac[5] = 0xED;
  
- persist.ip[0] = 192;
- persist.ip[1] = 168;
- persist.ip[2] = 26;
- persist.ip[3] = 10;
+  persist.ip[0] = 192;
+  persist.ip[1] = 168;
+  persist.ip[2] = 26;
+  persist.ip[3] = 10;
  
- persist.gateway[0] = 192;
- persist.gateway[1] = 168;
- persist.gateway[2] = 26;
- persist.gateway[3] = 1;
+  persist.gateway[0] = 192;
+  persist.gateway[1] = 168;
+  persist.gateway[2] = 26;
+  persist.gateway[3] = 1;
  
   Serial.begin(115200);                    // connect to the serial port
   Serial.println("Kegger Begin");
@@ -160,12 +160,12 @@ void setup()                    // run once, when the sketch starts
   Wire.endTransmission();  
   
   //init LCD
-  LCD.init(LCD_ENABLE_PIN,LCD_CONTRAST_PIN,LCD_I2C_ADDR); 
+  LCD.init(LCD_ENABLE_PIN,LCD_CONTRAST_PIN,LCD_I2C_ADDR,persist.contrast); 
   showMenu(currState); 
   
   //Timer2 Settings: Timer Prescaler /256,    16000000  / 256 = 625000 HZ =  62500 HZ / 250 =  250 HZ or every 4ms for the overflow timer
-  TCCR2B |= (1<<CS22) | (1<<CS21);    // turn on CS22 and CS21 bits
-  TCCR2B &= ~(1<<CS20);    // turn offd CS20 bits
+  TCCR2B |= (1<<CS22) | (1<<CS21);    // turn on CS22 and CS21 bits, sets prescaler to 256
+  TCCR2B &= ~(1<<CS20);    // make sure CS20 bit is off
   // Use normal mode
   TCCR2A &= ~((1<<WGM21) | (1<<WGM20));   // turn off WGM21 and WGM20 bits
   // Use internal clock - external clock not used in Arduino
@@ -173,7 +173,7 @@ void setup()                    // run once, when the sketch starts
   TIMSK2 |= (1<<TOIE2) | (0<<OCIE2A);	  //Timer2 Overflow Interrupt Enable
   TCNT2 = INIT_TIMER_COUNT;   //sets the starting value of the timer
   sei();  //Global interrupt enable
-}   //setup
+}   //setup()
 
 
 
@@ -208,16 +208,13 @@ void   loop()                     // run over and over again
     }
    
     //if the buttons have changed we need to set a flag so we know we aren't stable yet and update the previous transient value.
-    if( tempByte != prevButtonTransientState)
-    {
+    if( tempByte != prevButtonTransientState) {
        currButtonState |= BUTTONS_CHANGED_FLAG;     //change the current button state to indicate we are not settled yet using the following bit  0x00010000 as a flag.
        prevButtonTransientState=tempByte;   //
     }
+    
   } //if(timer_status & 0x01 )   5ms Timer
-
-   
   
-
 //**********************************************************************
 //*******  Timer 2
 //**********************************************************************
@@ -228,58 +225,42 @@ void   loop()                     // run over and over again
     
     if(! (currButtonState & BUTTONS_CHANGED_FLAG )) // This means the value was constant since last time we were here
     {
-        if(currButtonState != prevButtonTransientState)  //This means that we do indeed have a new state and need to process this button press
-        {
-             currButtonState = prevButtonTransientState;
-             
-                 
-      if( currButtonState & 1) {
-        Serial.println("Up Button Press");
-       buttonPressed = 1;
-       prevState = currState;
-       currState = stateMenu[currState][0];
-       showMenu(currState);
-     }
-     if( currButtonState & 2) {
-       Serial.println("Down Button Press");
-       buttonPressed = 3;
-       prevState = currState;
-       currState = stateMenu[currState][2];
-       showMenu(currState);
-     }
-     if( currButtonState & 4){
-       Serial.println("Left Button Press");
-       buttonPressed = 4;
-       prevState = currState;
-       currState = stateMenu[currState][3];
-       showMenu(currState);
-     }
-     if( currButtonState & 8){
-       Serial.println("Right Button Press");
-       buttonPressed = 2;
-       prevState = currState;
-       currState = stateMenu[currState][1];
-       showMenu(currState);
-    }
-  
-          
-          
-          
-          
-          
-          
+      if(currButtonState != prevButtonTransientState) { //This means that we do indeed have a new state and need to process this button press
+        currButtonState = prevButtonTransientState;
         
+        //Map physical button presses to state machine, if mutliple buttones are pressed to first one found gets executed.
+        if( currButtonState & 1) {
+          Serial.println("Up Button Press");
+          buttonPressed = 0;
+        }
+        else if( currButtonState & 2) {
+          Serial.println("Down Button Press");
+          buttonPressed = 2;
+        }
+        else if( currButtonState & 4){
+          Serial.println("Cancel Button Press");
+          buttonPressed = 3;
+        }
+        else if( currButtonState & 8){
+          Serial.println("Select Button Press");
+          buttonPressed = 1;
+        }
         
-        }//endif
+        if(currButtonState && buttonPressed < 4) {  //means there is at least one button pressed
+          prevState = currState;
+          currState = stateMenu[currState][buttonPressed];
+          showMenu(currState);
+          //Serial.print("Moved to state: ");
+          //Serial.println(currState,DEC);
+          
+        }
+        
+      } //if(currButtonState != prevButtonTransientState)
     
-    }//endif
+    } //if(! (currButtonState & BUTTONS_CHANGED_FLAG ))
+    
     //Clear the transient change flag
     currButtonState &= ~BUTTONS_CHANGED_FLAG;  //clears bit 4
-    
-    
-    
-  
-    
     
   } //if(timer_status & 0x02)   20ms Timer
   
@@ -300,11 +281,8 @@ void   loop()                     // run over and over again
     digitalWrite(LED_PIN, ! digitalRead(LED_PIN));
  //   LCD.setBacklight(tempByte);
   
-
+  //Read in current temperature
   tempByte = READ_TP;
-
-
-
   Wire.beginTransmission(TP1_ADDR);
   Wire.send(tempByte);
   Wire.endTransmission();
@@ -313,10 +291,10 @@ void   loop()                     // run over and over again
   curr_temp_hi = Wire.receive();
   curr_temp_lo = ((word)(Wire.receive() >> 4) * 625) / 100;
 
-  Serial.print("   Temp: ");
-  Serial.print(curr_temp_hi,DEC);
-  Serial.print(".");
-  Serial.print(curr_temp_lo,DEC);
+//  Serial.print("   Temp: ");
+//  Serial.print(curr_temp_hi,DEC);
+//  Serial.print(".");
+//  Serial.print(curr_temp_lo,DEC);
   
   // Read scale voltage value from a2d
   Wire.requestFrom(A2D_ADDR,2);
@@ -328,17 +306,11 @@ void   loop()                     // run over and over again
   Wire.send(A2D_CONFIG);
   Wire.endTransmission();
   
- Serial.print("  Scale: ");
- Serial.println(scale_volts,DEC);
+// Serial.print("  Scale: ");
+// Serial.println(scale_volts,DEC);
   //count1++;
   
  }//endif 1 sec timer
-
-//**********************************************************************
-//*******  Loop
-//**********************************************************************
-
-
 
 } //loop()
 
@@ -384,6 +356,11 @@ void showMenu(int state){
         compIcon = '*';
       else
         compIcon = ' ';
+        
+      if (buttonPressed == 1)
+        LCD.setContrast(--persist.contrast);
+      else if (buttonPressed == 3)
+        LCD.setContrast(++persist.contrast);
       
       //Generate strings for LCD output
       sprintf(buf," %d%c  %c  %d%c",persist.kegTemp,tempUnit,compIcon,kegPercent,(char)0x25);
@@ -414,11 +391,11 @@ void showMenu(int state){
     case 2:
       // If up pressed, raise new temp var
       // Else if down button then lower temp var
-      if ((prevState == 2) && (buttonPressed == 1))
+      if ((prevState == 2) && (buttonPressed == 0))
         newKegTemp++;
-      else if ((prevState == 2) && (buttonPressed == 3))
+      else if ((prevState == 2) && (buttonPressed == 2))
         newKegTemp--;
-      buttonPressed = 0;  
+      buttonPressed = 255;  
       sprintf(buf,"Set: %d%c",newKegTemp,tempUnit);
       
       LCD.setCursor(0,0);
@@ -484,10 +461,10 @@ void showMenu(int state){
      ********************/
     case 7:
     
-      if ((prevState == 7) && ((buttonPressed == 1) || (buttonPressed == 3)))
+      if ((prevState == 7) && ((buttonPressed == 0) || (buttonPressed == 2)))
         persist.useMetric = !persist.useMetric;
 
-      buttonPressed = 0;  
+      buttonPressed = 255;  
       sprintf(buf,"Set: %c",myUnit);
     
       LCD.setCursor(0,0);
@@ -533,3 +510,4 @@ void ctof(byte hi, byte lo)
     temp_lo = (temp_lo % 1000) / 10; 
 }
  
+
