@@ -45,12 +45,14 @@
 //          stateMenu[0][2] is ptr to state when RIGHT is pressed
 //          stateMenu[0][3] is ptr to state when DOWN is pressed
 //    NOTE: stateMenu[0][4] is ptr to state when LEFT is pressed
-static int stateMenu[6][5] = {{0,3,0,1,0},  //Screen: Idle
-                              {1,0,2,3,0},  //Screen: Set Temp
-                              {2,2,4,2,1},  //Screen:   Set Temp 2
-                              {3,1,5,0,0},  //Screen: About
-                              {5,5,5,5,3},  //Screen:   About 2
-                              {4,0,0,0,0},  //Screen: Saved
+static int stateMenu[8][4] = {{3,0,1,0},  //Screen 0: Idle
+                              {0,2,3,0},  //Screen 1: Set Temp
+                              {2,4,2,1},  //Screen 2:   Set Temp 2
+                              {1,5,6,0},  //Screen 3: About
+                              {0,0,0,0},  //Screen 4: Saved
+                              {5,5,5,3},  //Screen 5:   About 2
+                              {3,7,0,0},  //Screen 6: Set Unit
+                              {7,4,7,6},  //Screen 7:   Set Unit 2
                             };
 static int currState = 0;
 static int prevState = currState;
@@ -74,7 +76,7 @@ static struct{
    byte gateway[4];
   
    byte kegTemp;
-   byte unit;
+   boolean useMetric;
 } persist;
 
 
@@ -237,28 +239,28 @@ void   loop()                     // run over and over again
         Serial.println("Up Button Press");
        buttonPressed = 1;
        prevState = currState;
-       currState = stateMenu[currState][1];
+       currState = stateMenu[currState][0];
        showMenu(currState);
      }
      if( currButtonState & 2) {
        Serial.println("Down Button Press");
        buttonPressed = 3;
        prevState = currState;
-       currState = stateMenu[currState][3];
+       currState = stateMenu[currState][2];
        showMenu(currState);
      }
      if( currButtonState & 4){
        Serial.println("Left Button Press");
        buttonPressed = 4;
        prevState = currState;
-       currState = stateMenu[currState][4];
+       currState = stateMenu[currState][3];
        showMenu(currState);
      }
      if( currButtonState & 8){
        Serial.println("Right Button Press");
        buttonPressed = 2;
        prevState = currState;
-       currState = stateMenu[currState][2];
+       currState = stateMenu[currState][1];
        showMenu(currState);
     }
   
@@ -270,9 +272,9 @@ void   loop()                     // run over and over again
           
         
         
-        }
+        }//endif
     
-    }
+    }//endif
     //Clear the transient change flag
     currButtonState &= ~BUTTONS_CHANGED_FLAG;  //clears bit 4
     
@@ -281,7 +283,7 @@ void   loop()                     // run over and over again
   
     
     
-  }
+  }//endif 20 msec timer
   
   
 //**********************************************************************
@@ -332,7 +334,7 @@ void   loop()                     // run over and over again
  Serial.println(scale_volts,DEC);
   //count1++;
   
- }
+ }//endif 1 sec timer
 
 //**********************************************************************
 //*******  Loop
@@ -340,7 +342,7 @@ void   loop()                     // run over and over again
 
 
 
-}
+} //loop()
 
 
 
@@ -357,6 +359,20 @@ void showMenu(int state){
   char buf[32];  //Buffer for LCD string output
   char buf2[] = "X=Back   set=O";  //Hoping it cuts off a little on memory??
   char compIcon = ' ';               //Compressor Icon either on (*) or off ( )
+  char tempUnit[2];
+  char weightUnit[3];
+  char myUnit[6];
+  
+  if (!persist.useMetric){
+    sprintf(myUnit,"US");
+    sprintf(tempUnit,"%c%c",'F',(char)0xDF);
+    sprintf(weightUnit,"%c","lbs");
+  }
+  else {
+    sprintf(myUnit,"Metric");
+    sprintf(tempUnit,"%c%c",'C',(char)0xDF);
+    sprintf(weightUnit,"%c","kg");
+  }
 
 
   switch(state) {
@@ -372,11 +388,11 @@ void showMenu(int state){
         compIcon = ' ';
       
       //Generate strings for LCD output
-      sprintf(buf," %d%cF  %c  %d%c",persist.kegTemp,(char)0xDF,compIcon,kegPercent,(char)0x25);
+      sprintf(buf," %d%c  %c  %d%c",persist.kegTemp,tempUnit,compIcon,kegPercent,(char)0x25);
       LCD.setCursor(0,0);
       LCD.print(buf);
 
-      sprintf(buf,"%dLbs %dcups",kegWt,kegPints);
+      sprintf(buf,"%d%c %dcups",kegWt,weightUnit,kegPints);
       LCD.setCursor(0,1);
       LCD.print(buf);
       
@@ -387,7 +403,7 @@ void showMenu(int state){
      * SET TEMP         *
      ********************/
     case 1:
-      sprintf(buf,"SET TEMP [%d]",persist.kegTemp);
+      sprintf(buf,"SET TEMP [%d%c]",persist.kegTemp,tempUnit);
       LCD.setCursor(0,0);
       LCD.print(buf);
       LCD.setCursor(0,1);
@@ -405,7 +421,7 @@ void showMenu(int state){
       else if ((prevState == 2) && (buttonPressed == 3))
         newKegTemp--;
       buttonPressed = 0;  
-      sprintf(buf,"Set: %d%c",newKegTemp,(char)0xDF);
+      sprintf(buf,"Set: %d%c",newKegTemp,tempUnit);
       
       LCD.setCursor(0,0);
       LCD.print(buf);
@@ -450,6 +466,36 @@ void showMenu(int state){
       LCD.print("Kegerator v1.0");
       LCD.setCursor(0,1);
       LCD.print("... Enjoy! ...");
+      break;
+      
+    /********************
+     * SET UNIT         *
+     ********************/
+    case 6:
+    
+      sprintf(buf,"SET UNIT [%c]",myUnit);
+    
+      LCD.setCursor(0,0);
+      LCD.print(buf);
+      LCD.setCursor(0,1);
+      LCD.print(buf2);
+      break;
+
+    /********************
+     * SET UNIT 2       *
+     ********************/
+    case 7:
+    
+      if ((prevState == 7) && ((buttonPressed == 1) || (buttonPressed == 3)))
+        persist.useMetric = !persist.useMetric;
+
+      buttonPressed = 0;  
+      sprintf(buf,"Set: %c",myUnit);
+    
+      LCD.setCursor(0,0);
+      LCD.print(buf);
+      LCD.setCursor(0,1);
+      LCD.print(buf2);
       break;
 
   }  //switch
