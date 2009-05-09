@@ -32,19 +32,20 @@ LCD_I2C::LCD_I2C()
 
 }
 
-void LCD_I2C::init(uint8_t enable, uint8_t contrast, uint8_t i2c_addr) 
+void LCD_I2C::init(uint8_t enable_pin, uint8_t contrast_pin, uint8_t i2c_addr, uint8_t contrast) 
 {
   //Assign variable to local vars
-  _contrast_pin = contrast;
-  _enable_pin = enable;
+  _contrast_pin = contrast_pin;
+   _enable_pin = enable_pin;
   _i2c_addr = i2c_addr;
 
   //Setup arudino pins for output
   pinMode(_enable_pin, OUTPUT);
   pinMode(_contrast_pin, OUTPUT);
   digitalWrite(_enable_pin, LOW);
-  analogWrite(_contrast_pin,LCD_CONTRAST);
-
+  setContrast(contrast);
+  
+ 
 /*
 
   //Turn off LCD
@@ -101,7 +102,7 @@ void LCD_I2C::home()
   delay(3);
 }
 
-void LCD_I2C::setCursor(int col, int row)
+void LCD_I2C::setCursor(uint8_t col, uint8_t row)
 {
 #ifdef DEBUG
     Serial.println("");    
@@ -136,8 +137,6 @@ void LCD_I2C::send(uint8_t value, uint8_t mode) {
 #else     
 	send_nibble((value >> 4) | mode);
 	send_nibble((value & 0x0f) | mode);
-	
-
 #endif
     
 
@@ -174,6 +173,14 @@ void LCD_I2C::setBacklight(uint8_t value) {
    Wire.beginTransmission(_i2c_addr); 
    Wire.send(_config);
    Wire.endTransmission();
+}
+
+void LCD_I2C::setContrast(uint8_t value) {
+	analogWrite(_contrast_pin,value);
+}
+
+uint8_t LCD_I2C::getBacklight() {
+	return _config & LCD_BKL_POWER ;
 }
 
 LCD_I2C LCD = LCD_I2C();

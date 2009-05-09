@@ -19,6 +19,9 @@ print	KEYWORD2
 println KEYWORD2
 setCursor	KEYWORD2
 setBacklight KEYWORD2
+getBacklight KEYWORD2
+setContrast KEYWORD2
+getContrast KEYWORD2
 
 #######################################
 # Instances (KEYWORD2)
