@@ -1,3 +1,7 @@
+#include <Server.h>
+#include <Ethernet.h>
+#include <Client.h>
+
 #include <LCD_I2C.h>
 #include <stdio.h>
 #include <Wire.h>
@@ -65,6 +69,10 @@ static byte currButtonState=0;    //Current button state plus bit 4 used to keep
 
 // persistent variable to store between power outage
 static struct{
+   byte mac[6];
+   byte ip[4];
+   byte gateway[4];
+  
    byte kegTemp;
    byte unit;
 } persist;
@@ -114,6 +122,24 @@ void setup()                    // run once, when the sketch starts
  
   //Load persistent variable from EEPROM into persist struct.
   loadPersist();
+  
+  //network setup
+  persist.mac[0] = 0xDE; 
+ persist.mac[1] = 0xAD;
+ persist.mac[2] = 0xBE;
+ persist.mac[3] = 0xEF;
+ persist.mac[4] = 0xFE;
+ persist.mac[5] = 0xED;
+ 
+ persist.ip[0] = 192;
+ persist.ip[1] = 168;
+ persist.ip[2] = 26;
+ persist.ip[3] = 10;
+ 
+ persist.gateway[0] = 192;
+ persist.gateway[1] = 168;
+ persist.gateway[2] = 26;
+ persist.gateway[3] = 1;
  
   Serial.begin(115200);                    // connect to the serial port
   Serial.println("Kegger Begin");
