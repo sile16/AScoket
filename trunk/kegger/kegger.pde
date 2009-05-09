@@ -46,12 +46,12 @@
 //          stateMenu[0][3] is ptr to state when DOWN is pressed
 //    NOTE: stateMenu[0][4] is ptr to state when LEFT is pressed
 static int stateMenu[8][4] = {{3,0,1,0},  //Screen 0: Idle
-                              {0,2,3,0},  //Screen 1: Set Temp
+                              {0,2,6,0},  //Screen 1: Set Temp
                               {2,4,2,1},  //Screen 2:   Set Temp 2
-                              {1,5,6,0},  //Screen 3: About
+                              {6,5,0,0},  //Screen 3: About
                               {0,0,0,0},  //Screen 4: Saved
                               {5,5,5,3},  //Screen 5:   About 2
-                              {3,7,0,0},  //Screen 6: Set Unit
+                              {1,7,3,0},  //Screen 6: Set Unit
                               {7,4,7,6},  //Screen 7:   Set Unit 2
                             };
 static int currState = 0;
