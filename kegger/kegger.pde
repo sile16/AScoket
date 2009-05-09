@@ -1,5 +1,3 @@
-#include <Server.h>
-#include <Ethernet.h>
 #include <Client.h>
 
 #include <LCD_I2C.h>
@@ -45,7 +43,7 @@
 //          stateMenu[0][2] is ptr to state when RIGHT is pressed
 //          stateMenu[0][3] is ptr to state when DOWN is pressed
 //    NOTE: stateMenu[0][4] is ptr to state when LEFT is pressed
-static int stateMenu[8][4] = {{3,0,1,0},  //Screen 0: Idle
+static int stateMenu[][4] = {{3,0,1,0},  //Screen 0: Idle
                               {0,2,6,0},  //Screen 1: Set Temp
                               {2,4,2,1},  //Screen 2:   Set Temp 2
                               {6,5,0,0},  //Screen 3: About
@@ -106,7 +104,7 @@ ISR(TIMER2_OVF_vect) {  //Every 4 ms
     PORTB ^= ( 0x01 << 0);  //Arduino pin 8
   }
   
-}
+}  //ISR(TIME2_OVF_vect)
 
 
 
@@ -126,7 +124,7 @@ void setup()                    // run once, when the sketch starts
   loadPersist();
   
   //network setup
-  persist.mac[0] = 0xDE; 
+ persist.mac[0] = 0xDE; 
  persist.mac[1] = 0xAD;
  persist.mac[2] = 0xBE;
  persist.mac[3] = 0xEF;
@@ -175,7 +173,7 @@ void setup()                    // run once, when the sketch starts
   TIMSK2 |= (1<<TOIE2) | (0<<OCIE2A);	  //Timer2 Overflow Interrupt Enable
   TCNT2 = INIT_TIMER_COUNT;   //sets the starting value of the timer
   sei();  //Global interrupt enable
-} 
+}   //setup
 
 
 
@@ -215,7 +213,7 @@ void   loop()                     // run over and over again
        currButtonState |= BUTTONS_CHANGED_FLAG;     //change the current button state to indicate we are not settled yet using the following bit  0x00010000 as a flag.
        prevButtonTransientState=tempByte;   //
     }
-  }
+  } //if(timer_status & 0x01 )   5ms Timer
 
    
   
@@ -283,7 +281,7 @@ void   loop()                     // run over and over again
   
     
     
-  }//endif 20 msec timer
+  } //if(timer_status & 0x02)   20ms Timer
   
   
 //**********************************************************************
