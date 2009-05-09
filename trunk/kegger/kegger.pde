@@ -355,20 +355,20 @@ void   loop()                     // run over and over again
 void showMenu(int state){
   
   char buf[32];  //Buffer for LCD string output
-  char buf2[] = "X=Back   set=O";  //Hoping it cuts off a little on memory??
+  char buf2[] = "X=Back   Set=O";  //Hoping it cuts off a little on memory??
   char compIcon = ' ';               //Compressor Icon either on (*) or off ( )
-  char tempUnit[2];
-  char weightUnit[3];
-  char myUnit[6];
+  char tempUnit[3];
+  char weightUnit[4];
+  char myUnit[7];
   
   if (!persist.useMetric){
     sprintf(myUnit,"US");
-    sprintf(tempUnit,"%c%c",'F',(char)0xDF);
+    sprintf(tempUnit,"%cF",(char)0xDF);
     sprintf(weightUnit,"%c","lbs");
   }
   else {
     sprintf(myUnit,"Metric");
-    sprintf(tempUnit,"%c%c",'C',(char)0xDF);
+    sprintf(tempUnit,"%cC",(char)0xDF);
     sprintf(weightUnit,"%c","kg");
   }
 
