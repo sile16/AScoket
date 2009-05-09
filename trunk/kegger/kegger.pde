@@ -30,10 +30,6 @@
 #define INIT_TIMER_COUNT        6
 
 
-
-/************************
- * blahhhhhhhhhhhhh: Tyler Vars    *
- ************************/
 /************************
  * BEGIN: Tyler Vars    *
  ************************/
@@ -56,6 +52,8 @@ static int currState = 0;
 static int prevState = currState;
 static boolean compPower = true;
 
+static int temp_hi = 0;
+static int temp_lo = 0;
 static int newKegTemp = 43;
 static int kegPercent = 69;
 static int kegWt = 148;
@@ -456,3 +454,12 @@ void savePersist()
      }
 }
 
+void ctof(byte hi, byte lo)
+{
+    temp_hi = (word)hi * 18;     
+     
+    temp_lo = (word)lo * 18 + (temp_hi % 10) * 100;
+    temp_hi = temp_hi/10 + 32 + temp_lo / 1000;
+    temp_lo = (temp_lo % 1000) / 10; 
+}
+ 
