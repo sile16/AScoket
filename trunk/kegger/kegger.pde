@@ -194,16 +194,16 @@ void   loop()                     // run over and over again
     
     //  Read in current button values into tempByte
     tempByte =0;
-    if( digitalRead(UP_BUTTON_PIN)){
+    if( !digitalRead(UP_BUTTON_PIN)){
       tempByte = 1;
     }
-    if( digitalRead(DOWN_BUTTON_PIN)){
+    if( !digitalRead(DOWN_BUTTON_PIN)){
       tempByte += 2;
     }
-    if( digitalRead(LEFT_BUTTON_PIN)){
+    if( !digitalRead(LEFT_BUTTON_PIN)){
       tempByte += 4;
     }
-    if( digitalRead(RIGHT_BUTTON_PIN)){
+    if( !digitalRead(RIGHT_BUTTON_PIN)){
       tempByte +=8;
     }
    
@@ -329,19 +329,20 @@ void showMenu(int state){
   char buf[32];  //Buffer for LCD string output
   char buf2[] = "X=Back   Set=O";  //Hoping it cuts off a little on memory??
   char compIcon = ' ';               //Compressor Icon either on (*) or off ( )
-  char tempUnit[3];
-  char weightUnit[4];
-  char myUnit[7];
+  char tempUnit[8];
+  char weightUnit[8];
+  char myUnit[8];
+
   
   if (!persist.useMetric){
     sprintf(myUnit,"US");
     sprintf(tempUnit,"%cF",(char)0xDF);
-    sprintf(weightUnit,"%c","lbs");
+    sprintf(weightUnit,"kg");
   }
   else {
-    sprintf(myUnit,"Metric");
+    sprintf(myUnit,"M");
     sprintf(tempUnit,"%cC",(char)0xDF);
-    sprintf(weightUnit,"%c","kg");
+    sprintf(weightUnit,"kg");
   }
 
 
@@ -363,11 +364,11 @@ void showMenu(int state){
         LCD.setContrast(++persist.contrast);
       
       //Generate strings for LCD output
-      sprintf(buf," %d%c  %c  %d%c",persist.kegTemp,tempUnit,compIcon,kegPercent,(char)0x25);
+      sprintf(buf,"%3d%s  %c  %d%-3c",persist.kegTemp,tempUnit,compIcon,kegPercent,(char)0x25);
       LCD.setCursor(0,0);
       LCD.print(buf);
 
-      sprintf(buf,"%d%c %dcups",kegWt,weightUnit,kegPints);
+      sprintf(buf,"%3d%s %4dcups",kegWt,weightUnit,kegPints);
       LCD.setCursor(0,1);
       LCD.print(buf);
       
@@ -378,7 +379,7 @@ void showMenu(int state){
      * SET TEMP         *
      ********************/
     case 1:
-      sprintf(buf,"SET TEMP [%d%c]",persist.kegTemp,tempUnit);
+      sprintf(buf,"SET TEMP [%2d%s]",persist.kegTemp,tempUnit);
       LCD.setCursor(0,0);
       LCD.print(buf);
       LCD.setCursor(0,1);
@@ -396,7 +397,7 @@ void showMenu(int state){
       else if ((prevState == 2) && (buttonPressed == 2))
         newKegTemp--;
       buttonPressed = 255;  
-      sprintf(buf,"Set: %d%c",newKegTemp,tempUnit);
+      sprintf(buf,"Set: %2d%8s",newKegTemp,tempUnit);
       
       LCD.setCursor(0,0);
       LCD.print(buf);
@@ -430,6 +431,7 @@ void showMenu(int state){
       delay(3000);
       currState = 0;
       prevState = 0;
+      showMenu(currState);
       
       break;
       
@@ -448,7 +450,7 @@ void showMenu(int state){
      ********************/
     case 6:
     
-      sprintf(buf,"SET UNIT [%c]",myUnit);
+      sprintf(buf,"SET UNIT [%2s] ",myUnit);
     
       LCD.setCursor(0,0);
       LCD.print(buf);
@@ -463,9 +465,10 @@ void showMenu(int state){
     
       if ((prevState == 7) && ((buttonPressed == 0) || (buttonPressed == 2)))
         persist.useMetric = !persist.useMetric;
+      
 
       buttonPressed = 255;  
-      sprintf(buf,"Set: %c",myUnit);
+      sprintf(buf,"Set: %-15s",myUnit);
     
       LCD.setCursor(0,0);
       LCD.print(buf);
