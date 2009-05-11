@@ -63,15 +63,17 @@
 //          stateMenu[0][2] is ptr to state when RIGHT is pressed
 //          stateMenu[0][3] is ptr to state when DOWN is pressed
 //    NOTE: stateMenu[0][4] is ptr to state when LEFT is pressed
-
-static int stateMenu[][4] = {{3,0,1,0},  //Screen 0: Idle
+//    Current Menu Order: 0<->1<->6<->8<->3<->0
+static int stateMenu[][4] = { {3,0,1,0},  //Screen 0: Idle
                               {0,2,6,0},  //Screen 1: Set Temp
                               {2,4,2,1},  //Screen 2:   Set Temp 2
-                              {6,5,0,0},  //Screen 3: About
+                              {8,5,0,0},  //Screen 3: About
                               {0,0,0,0},  //Screen 4: Saved
                               {5,5,5,3},  //Screen 5:   About 2
-                              {1,7,3,0},  //Screen 6: Set Unit
+                              {1,7,8,0},  //Screen 6: Set Unit
                               {7,4,7,6},  //Screen 7:   Set Unit 2
+                              {6,9,3,0},  //Screen 8: Set Contrast
+                              {9,4,9,8},  //Screen 9:   Set Contrast 2
                             };
 static int currState = 0;
 static int prevState = currState;
@@ -83,6 +85,9 @@ static byte kegPercent = 69;
 static int kegWt = 148;
 static int kegPints = 201;
 static byte buttonPressed = 255;
+
+static byte prevContrast;
+static boolean prevUseMetric;
 
 static byte prevButtonTransientState = 0;
 static byte currButtonState=0;    //Current button state plus bit 4 used to keep track of transient changes. BUTTONS_CHANGED_FLAG
@@ -387,7 +392,7 @@ void   loop()                     // run over and over again
 void showMenu(int state){
   
   char buf[32];  //Buffer for LCD string output
-  char buf2[] = "X=Back   Set=O";  //Hoping it cuts off a little on memory??
+  char buf2[] = "X=Back   Set=O ";   //Hoping it cuts off a little on memory??
   char compIcon = ' ';               //Compressor Icon either on (*) or off ( )
   char tempUnit[8];
   char weightUnit[8];
@@ -398,7 +403,7 @@ void showMenu(int state){
   if (!persist.useMetric){
     sprintf(myUnit,"US");
     sprintf(tempUnit,"%cF",(char)0xDF);
-    sprintf(weightUnit,"kg");
+    sprintf(weightUnit,"lbs");
   }
   else {
     sprintf(myUnit,"M");
@@ -516,6 +521,17 @@ void showMenu(int state){
      * SET UNIT         *
      ********************/
     case 6:
+
+      if (prevState == 7){
+        persist.useMetric = prevUseMetric;
+          if (!persist.useMetric)
+            sprintf(myUnit,"US");
+          else
+            sprintf(myUnit,"M");
+      }
+      else
+        prevUseMetric = persist.useMetric; // Gives ability to revert (w/ left arrow from below state)
+
     
       sprintf(buf,"SET UNIT [%2s] ",myUnit);
     
@@ -530,12 +546,53 @@ void showMenu(int state){
      ********************/
     case 7:
     
-      if ((prevState == 7) && ((buttonPressed == 0) || (buttonPressed == 2)))
+      if ((prevState == 7) && ((buttonPressed == 0) || (buttonPressed == 2))){
         persist.useMetric = !persist.useMetric;
+          if (!persist.useMetric)
+            sprintf(myUnit,"US");
+          else
+            sprintf(myUnit,"M");
+      }
       
-
       buttonPressed = 255;  
-      sprintf(buf,"Set: %-15s",myUnit);
+      sprintf(buf,"Set: %-10s",myUnit);
+    
+      LCD.setCursor(0,0);
+      LCD.print(buf);
+      LCD.setCursor(0,1);
+      LCD.print(buf2);
+      break;
+
+    /************************
+     * SET CONTRAST         *
+     ************************/
+    case 8:
+    
+      if (prevState == 9)
+        persist.contrast = prevContrast;
+      else
+        prevContrast = persist.contrast; // Gives ability to revert (w/ left arrow from below state)
+    
+      sprintf(buf,"CONTRAST [%2d] ",(int)persist.contrast);
+      
+      LCD.setCursor(0,0);
+      LCD.print(buf);
+      LCD.setCursor(0,1);
+      LCD.print(buf2);
+      break;
+
+    /************************
+     * SET CONTRAST 2       *
+     ************************/
+    case 9:
+    
+      if (buttonPressed == 2)
+        LCD.setContrast(--persist.contrast);
+      else if (buttonPressed == 0)
+        LCD.setContrast(++persist.contrast);
+      
+      buttonPressed = 255;  
+      sprintf(buf,"Set: %-10d",(int)persist.contrast);
     
       LCD.setCursor(0,0);
       LCD.print(buf);
