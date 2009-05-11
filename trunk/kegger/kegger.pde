@@ -67,13 +67,15 @@
 static int stateMenu[][4] = { {3,0,1,0},  //Screen 0: Idle
                               {0,2,6,0},  //Screen 1: Set Temp
                               {2,4,2,1},  //Screen 2:   Set Temp 2
-                              {8,5,0,0},  //Screen 3: About
+                              {10,5,0,0},  //Screen 3: About
                               {0,0,0,0},  //Screen 4: Saved
                               {5,0,5,3},  //Screen 5:   About 2
                               {1,7,8,0},  //Screen 6: Set Unit
                               {7,4,7,6},  //Screen 7:   Set Unit 2
-                              {6,9,3,0},  //Screen 8: Set Contrast
+                              {6,9,10,0},  //Screen 8: Set Contrast
                               {9,4,9,8},  //Screen 9:   Set Contrast 2
+                              {8,11,3,0},  //Screen 10: Set Temp Gap
+                              {11,4,11,10},  //Screen 11:   Set Temp Gap 2
                             };
 static int currState = 0;
 static int prevState = currState;
@@ -87,6 +89,7 @@ static int kegPints = 201;
 static byte buttonPressed = 255;
 
 static byte prevContrast;
+static byte prevKegTempGap;
 static boolean prevUseMetric;
 
 static byte prevButtonTransientState = 0;
@@ -103,6 +106,7 @@ static struct{
    boolean useMetric;
    
    byte contrast;
+   byte kegTempGap;
 } persist;
 
 
@@ -162,6 +166,10 @@ void setup()                    // run once, when the sketch starts
  
   //Load persistent variable from EEPROM into persist struct.
   loadPersist();
+  
+  //Initialize kegTempGap
+  if ((int)persist.kegTempGap >10)
+    persist.kegTempGap = 2;
   
   //network setup
   persist.mac[0] = 0xDE; 
@@ -376,6 +384,24 @@ void   loop()                     // run over and over again
 // Serial.println(scale_volts,DEC);
   //count1++;
   
+  
+  
+  /***************************
+   * Compressor On/Off Logic
+   ***************************/
+  if(!compPower){
+    // If the compressor is off, kick it on when currTemp is over the gap. Its kegTempGap-1 to accomodate for decimals
+    // Else if the compressor is on, leave it on until we're ** 2 degrees ** under the desired temp (kegTemp)
+    if(currTemp.hi > (persist.kegTemp + persist.kegTempGap-1))
+      compPower = true; 
+  }
+  else if(compPower){
+    if(currTemp.hi <= persist.kegTemp-3)
+      compPower = false;
+  }
+
+  
+    
   showMenu(currState);
   
  }//endif 1 sec timer
@@ -427,9 +453,9 @@ void showMenu(int state){
       else
         compIcon = ' ';
         
-      if (buttonPressed == 1)
+      if ((prevState == 0) && (buttonPressed == 1))
         LCD.setContrast(--persist.contrast);
-      else if (buttonPressed == 3)
+      else if ((prevState == 0) && (buttonPressed == 3))
         LCD.setContrast(++persist.contrast);
       
       displayTemp=currTemp;
@@ -437,7 +463,7 @@ void showMenu(int state){
         displayTemp = ctof(currTemp);
       }
         
-        
+      buttonPressed = 255;
       //Generate strings for LCD output
       sprintf(buf,"%02d.%02d%s %c  %d%-3c",displayTemp.hi,displayTemp.lo,tempUnit,compIcon,kegPercent,(char)0x25);
       LCD.setCursor(0,0);
@@ -596,6 +622,43 @@ void showMenu(int state){
       
       buttonPressed = 255;  
       sprintf(buf,"Set: %-10d",(int)persist.contrast);
+    
+      LCD.setCursor(0,0);
+      LCD.print(buf);
+      LCD.setCursor(0,1);
+      LCD.print(buf2);
+      break;
+
+    /************************
+     * SET TEMP GAP         *
+     ************************/
+    case 10:
+    
+      if(prevState == 11)
+        persist.kegTempGap = prevKegTempGap;
+      else
+        prevKegTempGap = persist.kegTempGap; // Gives ability to revert (w/ left arrow from below state)
+    
+      sprintf(buf,"TEMP GAP [%2d]  ",(int)persist.kegTempGap);
+      
+      LCD.setCursor(0,0);
+      LCD.print(buf);
+      LCD.setCursor(0,1);
+      LCD.print(buf2);
+      break;
+
+    /************************
+     * SET TEMP GAP 2       *
+     ************************/
+    case 11:
+
+      if ((buttonPressed == 2) && (persist.kegTempGap > 0))
+        persist.kegTempGap = persist.kegTempGap--;
+      else if ((buttonPressed == 0) && (persist.kegTempGap <10))
+        persist.kegTempGap = persist.kegTempGap++;
+
+      buttonPressed = 255;  
+      sprintf(buf,"Set: %-10d",(int)persist.kegTempGap);
     
       LCD.setCursor(0,0);
       LCD.print(buf);
