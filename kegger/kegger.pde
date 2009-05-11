@@ -583,13 +583,17 @@ void showMenu(int state){
             sprintf(myUnit,"M");
       }
       
-      buttonPressed = 255;  
+      buttonPressed = 255;
+      
+      if(!strcmp(myUnit,"M"))
+        sprintf(myUnit,"Metric");
+        
       sprintf(buf,"Set: %-10s",myUnit);
     
       LCD.setCursor(0,0);
       LCD.print(buf);
       LCD.setCursor(0,1);
-      LCD.print(buf2);
+      LCD.print("X=Back  Save=O");
       break;
 
     /************************
@@ -626,7 +630,7 @@ void showMenu(int state){
       LCD.setCursor(0,0);
       LCD.print(buf);
       LCD.setCursor(0,1);
-      LCD.print(buf2);
+      LCD.print("X=Back  Save=O");
       break;
 
     /************************
@@ -639,7 +643,7 @@ void showMenu(int state){
       else
         prevKegTempGap = persist.kegTempGap; // Gives ability to revert (w/ left arrow from below state)
     
-      sprintf(buf,"TEMP GAP [%2d]  ",(int)persist.kegTempGap);
+      sprintf(buf,"TEMP GAP [%2d%s]",(int)persist.kegTempGap,tempUnit);
       
       LCD.setCursor(0,0);
       LCD.print(buf);
@@ -658,12 +662,12 @@ void showMenu(int state){
         persist.kegTempGap = persist.kegTempGap++;
 
       buttonPressed = 255;  
-      sprintf(buf,"Set: %-10d",(int)persist.kegTempGap);
+      sprintf(buf,"Temp Gap: %2d%s ",(int)persist.kegTempGap,tempUnit);
     
       LCD.setCursor(0,0);
       LCD.print(buf);
       LCD.setCursor(0,1);
-      LCD.print(buf2);
+      LCD.print("X=Back  Save=O");
       break;
 
   }  //switch
