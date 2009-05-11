@@ -69,7 +69,7 @@ static int stateMenu[][4] = { {3,0,1,0},  //Screen 0: Idle
                               {2,4,2,1},  //Screen 2:   Set Temp 2
                               {8,5,0,0},  //Screen 3: About
                               {0,0,0,0},  //Screen 4: Saved
-                              {5,5,5,3},  //Screen 5:   About 2
+                              {5,0,5,3},  //Screen 5:   About 2
                               {1,7,8,0},  //Screen 6: Set Unit
                               {7,4,7,6},  //Screen 7:   Set Unit 2
                               {6,9,3,0},  //Screen 8: Set Contrast
@@ -330,7 +330,7 @@ void   loop()                     // run over and over again
  //   LCD.setBacklight(tempByte);
 
 #ifdef  SIMULATE_TEMPERATURE
-  if(compPower) {   //simulate temp increasing by .1 degrees Celcious ever 1 second,  10 seconds for 1 degree
+  if(compPower) {   //simulate temp increasing by .1 degrees Celcius ever 1 second,  10 seconds for 1 degree
     currTemp.lo -= 0x10;
     if(currTemp.lo > 99) {
       currTemp.lo = 90;
@@ -472,7 +472,7 @@ void showMenu(int state){
       else if ((prevState == 2) && (buttonPressed == 2))
         newKegTemp--;
       buttonPressed = 255;  
-      sprintf(buf,"Set: %2d%8s",newKegTemp,tempUnit);
+      sprintf(buf,"Set: %2d%-8s",newKegTemp,tempUnit);
       
       LCD.setCursor(0,0);
       LCD.print(buf);
@@ -536,7 +536,7 @@ void showMenu(int state){
         prevUseMetric = persist.useMetric; // Gives ability to revert (w/ left arrow from below state)
 
     
-      sprintf(buf,"SET UNIT [%2s] ",myUnit);
+      sprintf(buf,"SET UNIT [%2s]  ",myUnit);
     
       LCD.setCursor(0,0);
       LCD.print(buf);
@@ -576,7 +576,7 @@ void showMenu(int state){
       else
         prevContrast = persist.contrast; // Gives ability to revert (w/ left arrow from below state)
     
-      sprintf(buf,"CONTRAST [%2d] ",(int)persist.contrast);
+      sprintf(buf,"CONTRAST [%2d]  ",(int)persist.contrast);
       
       LCD.setCursor(0,0);
       LCD.print(buf);
