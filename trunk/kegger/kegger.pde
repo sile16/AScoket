@@ -1,13 +1,26 @@
 #include <Client.h>
-
 #include <LCD_I2C.h>
 #include <stdio.h>
 #include <Wire.h>
 #include <EEPROM.h>
-
 #include <avr/interrupt.h>
 #include <avr/io.h>
+#include "kegger.h"
 
+
+
+
+/**************************
+ * BEGIN: Compile Options *
+ **************************/
+ 
+#define SIMULATE_TEMPERATURE  //simulates temperature changes, use for testing w/o real temp sensor, otherwise comment out for real operation
+
+//END: Compile Options *
+
+/************************
+ * BEGIN: Constants    *
+ ************************/
 
 #define LCD_ENABLE_PIN             6
 #define LCD_CONTRAST_PIN           5
@@ -31,10 +44,17 @@
 #define BUTTONS_CHANGED_FLAG    0x10
 #define INIT_TIMER_COUNT        6
 
+//END: Constants 
+
 
 /************************
- * BEGIN: Tyler Vars    *
+ * BEGIN:    Globals    *
  ************************/
+
+
+
+
+
 // stateMenu is an array of finite state machine ID actions per button pressed
 //   -Each row is the state, each col is a ptr to state based on button pressed
 //    Ex: stateMenu[0] is the idle state
@@ -57,18 +77,18 @@ static int currState = 0;
 static int prevState = currState;
 static boolean compPower = true;
 
-static int temp_hi = 0;
-static int temp_lo = 0;
-static int newKegTemp = 43;
-static int kegPercent = 69;
+temperature currTemp;
+static byte newKegTemp;
+static byte kegPercent = 69;
 static int kegWt = 148;
 static int kegPints = 201;
-static int buttonPressed = 255;
+static byte buttonPressed = 255;
 
 static byte prevButtonTransientState = 0;
 static byte currButtonState=0;    //Current button state plus bit 4 used to keep track of transient changes. BUTTONS_CHANGED_FLAG
 
 // persistent variable to store between power outage
+// Add variable to the end of this struct to avoid breaking current values stored in memory
 static struct{
    byte mac[6];
    byte ip[4];
@@ -87,6 +107,16 @@ volatile static byte timer_status = 0;
 volatile static byte timer_count = 0;
 static byte tempByte;
 
+// END: Globals  
+
+
+/************************************
+ * ISR(TIMER2_OVF_vect)             
+ *
+ * Called every 4ms, Timer2 Overflow Interrupt
+ * Increments counters for 3 status timers
+ *
+ ************************************/
 ISR(TIMER2_OVF_vect) {  //Every 4 ms
   TCNT2 = INIT_TIMER_COUNT;   //sets the starting value of the timer to 6 so we get 250 counts before overflow of our 8 bit counter
   
@@ -107,7 +137,12 @@ ISR(TIMER2_OVF_vect) {  //Every 4 ms
 }  //ISR(TIME2_OVF_vect)
 
 
-
+/************************************
+ * void setup()              
+ *
+ * Called once, does one time setup
+ *
+ ************************************/
 void setup()                    // run once, when the sketch starts
 {
 
@@ -153,6 +188,11 @@ void setup()                    // run once, when the sketch starts
   Wire.beginTransmission(TP1_ADDR);
   Wire.send(START_CONVERT);
   Wire.endTransmission();
+  
+  //Initialize the temp variables
+  currTemp.hi = newKegTemp = persist.kegTemp;
+  currTemp.lo=0;
+
 
   // Scale sensor init
   Wire.beginTransmission(A2D_ADDR);
@@ -176,11 +216,14 @@ void setup()                    // run once, when the sketch starts
 }   //setup()
 
 
-
+/************************************
+ * void loop()              
+ *
+ * Called repeatedly, main program loop
+ *
+ ************************************/
 void   loop()                     // run over and over again
 {
-  byte curr_temp_hi;
-  byte curr_temp_lo;
   word scale_volts;
 
  
@@ -280,7 +323,23 @@ void   loop()                     // run over and over again
     digitalWrite(LED_STATUS2_PIN, ! digitalRead(LED_STATUS2_PIN));
     digitalWrite(LED_PIN, ! digitalRead(LED_PIN));
  //   LCD.setBacklight(tempByte);
-  
+
+#ifdef  SIMULATE_TEMPERATURE
+  if(compPower) {   //simulate temp increasing by .1 degrees Celcious ever 1 second,  10 seconds for 1 degree
+    currTemp.lo += 10;
+    if(currTemp.lo > 99) {
+      currTemp.lo=0;
+      currTemp.hi++;
+    }
+  }
+  else {
+    currTemp.lo -= 0x10;
+    if(currTemp.lo > 99) {
+      currTemp.lo = 90;
+      currTemp.hi--;
+    }
+  }
+#else  // not simulating, read actual temp from sensor board
   //Read in current temperature
   tempByte = READ_TP;
   Wire.beginTransmission(TP1_ADDR);
@@ -288,9 +347,10 @@ void   loop()                     // run over and over again
   Wire.endTransmission();
   
   Wire.requestFrom(TP1_ADDR,2);
-  curr_temp_hi = Wire.receive();
-  curr_temp_lo = ((word)(Wire.receive() >> 4) * 625) / 100;
+  currTemp.hi = Wire.receive();
+  currTemp.lo = ((word)(Wire.receive() >> 4) * 625) / 100;
 
+#endif
 //  Serial.print("   Temp: ");
 //  Serial.print(curr_temp_hi,DEC);
 //  Serial.print(".");
@@ -332,6 +392,7 @@ void showMenu(int state){
   char tempUnit[8];
   char weightUnit[8];
   char myUnit[8];
+  temperature displayTemp;
 
   
   if (!persist.useMetric){
@@ -363,8 +424,14 @@ void showMenu(int state){
       else if (buttonPressed == 3)
         LCD.setContrast(++persist.contrast);
       
+      displayTemp=currTemp;
+      if (!persist.useMetric){
+        displayTemp = ctof(currTemp);
+      }
+        
+        
       //Generate strings for LCD output
-      sprintf(buf,"%3d%s  %c  %d%-3c",persist.kegTemp,tempUnit,compIcon,kegPercent,(char)0x25);
+      sprintf(buf,"%02d.%02d%s  %c  %d%-3c",displayTemp.hi,displayTemp.lo,tempUnit,compIcon,kegPercent,(char)0x25);
       LCD.setCursor(0,0);
       LCD.print(buf);
 
@@ -504,13 +571,16 @@ void savePersist()
      }
 }
 
-void ctof(byte hi, byte lo)
+
+temperature ctof(temperature input)
 {
-    temp_hi = (word)hi * 18;     
-     
-    temp_lo = (word)lo * 18 + (temp_hi % 10) * 100;
-    temp_hi = temp_hi/10 + 32 + temp_lo / 1000;
-    temp_lo = (temp_lo % 1000) / 10; 
+    temperature converted;
+  
+    converted.hi = (word) input.hi * 18;     
+    converted.lo = (word) input.lo * 18 + (converted.hi % 10) * 100;
+    converted.hi = converted.hi/10 + 32 + converted.lo / 1000;
+    converted.lo = (converted.lo % 1000) / 10;
+    return converted;
 }
  
 
