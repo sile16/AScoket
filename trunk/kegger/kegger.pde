@@ -331,18 +331,19 @@ void   loop()                     // run over and over again
 
 #ifdef  SIMULATE_TEMPERATURE
   if(compPower) {   //simulate temp increasing by .1 degrees Celcious ever 1 second,  10 seconds for 1 degree
-    currTemp.lo += 10;
-    if(currTemp.lo > 99) {
-      currTemp.lo=0;
-      currTemp.hi++;
-    }
-  }
-  else {
     currTemp.lo -= 0x10;
     if(currTemp.lo > 99) {
       currTemp.lo = 90;
       currTemp.hi--;
     }
+  }
+  else {
+    currTemp.lo += 10;
+    if(currTemp.lo > 99) {
+      currTemp.lo=0;
+      currTemp.hi++;
+    }
+    
   }
 #else  // not simulating, read actual temp from sensor board
   //Read in current temperature
@@ -374,6 +375,8 @@ void   loop()                     // run over and over again
 // Serial.print("  Scale: ");
 // Serial.println(scale_volts,DEC);
   //count1++;
+  
+  showMenu(currState);
   
  }//endif 1 sec timer
 
@@ -436,7 +439,7 @@ void showMenu(int state){
         
         
       //Generate strings for LCD output
-      sprintf(buf,"%02d.%02d%s  %c  %d%-3c",displayTemp.hi,displayTemp.lo,tempUnit,compIcon,kegPercent,(char)0x25);
+      sprintf(buf,"%02d.%02d%s %c  %d%-3c",displayTemp.hi,displayTemp.lo,tempUnit,compIcon,kegPercent,(char)0x25);
       LCD.setCursor(0,0);
       LCD.print(buf);
 
@@ -632,11 +635,12 @@ void savePersist()
 temperature ctof(temperature input)
 {
     temperature converted;
+    word hi,lo;
   
-    converted.hi = (word) input.hi * 18;     
-    converted.lo = (word) input.lo * 18 + (converted.hi % 10) * 100;
-    converted.hi = converted.hi/10 + 32 + converted.lo / 1000;
-    converted.lo = (converted.lo % 1000) / 10;
+    hi = ((word)input.hi) * 18;     
+    lo = ((word)input.lo) * 18 + (hi % 10) * 100;
+    converted.hi = hi/10 + 32 + lo / 1000;
+    converted.lo = (lo % 1000) / 10;
     return converted;
 }
  
