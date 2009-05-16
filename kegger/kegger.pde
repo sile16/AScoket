@@ -1,4 +1,3 @@
-#include <Client.h>
 #include <LCD_I2C.h>
 #include <stdio.h>
 #include <Wire.h>
@@ -7,14 +6,16 @@
 #include <avr/io.h>
 #include "kegger.h"
 
-
+#include <Ethernet.h>
+#include "Dhcp.h"
 
 
 /**************************
  * BEGIN: Compile Options *
  **************************/
  
-#define SIMULATE_TEMPERATURE  //simulates temperature changes, use for testing w/o real temp sensor, otherwise comment out for real operation
+#define SIMULATE    //simulates temperature changes, use for testing w/o real temp sensor, otherwise comment out for real operation
+#define ETHERNET
 
 //END: Compile Options *
 
@@ -98,15 +99,21 @@ static byte currButtonState=0;    //Current button state plus bit 4 used to keep
 // persistent variable to store between power outage
 // Add variable to the end of this struct to avoid breaking current values stored in memory
 static struct{
-   byte mac[6];
-   byte ip[4];
-   byte gateway[4];
-  
    byte kegTemp;
    boolean useMetric;
    
    byte contrast;
    byte kegTempGap;
+
+   word kegTareFull;
+   word kegTareEmpty;
+   
+   //Adding network stuff towards end as this is the most unstable part.
+   byte mac[6];            //MAC Address, should be unique to every keggorator
+   byte server[50];        //Server hostname to send Updates to.
+   byte server_path[10];   //Path on server to send updates
+ 
+
 } persist;
 
 
@@ -115,7 +122,13 @@ static struct{
 volatile static byte timer_status = 0;
 volatile static byte timer_count = 0;
 static byte tempByte;
+word scale_volts;
 
+#ifdef ETHERNET
+byte server[] = { 64, 233, 187, 99 }; // Google
+Client client(server, 80);
+boolean ipAcquired = false;
+#endif
 // END: Globals  
 
 
@@ -167,10 +180,16 @@ void setup()                    // run once, when the sketch starts
   //Load persistent variable from EEPROM into persist struct.
   loadPersist();
   
+  
+  Serial.begin(115200);                    // connect to the serial port
+  Serial.println("Kegger Begin");
+  Wire.begin();
+
   //Initialize kegTempGap
   if ((int)persist.kegTempGap >10)
     persist.kegTempGap = 2;
-  
+ 
+#ifdef ETHERNET
   //network setup
   persist.mac[0] = 0xDE; 
   persist.mac[1] = 0xAD;
@@ -178,20 +197,56 @@ void setup()                    // run once, when the sketch starts
   persist.mac[3] = 0xEF;
   persist.mac[4] = 0xFE;
   persist.mac[5] = 0xED;
+  
+  Serial.println("getting ip...");
+  
+  int result = Dhcp.beginWithDHCP(persist.mac);
  
-  persist.ip[0] = 192;
-  persist.ip[1] = 168;
-  persist.ip[2] = 26;
-  persist.ip[3] = 10;
+  if(result == 1)
+  {
+    ipAcquired = true;
+    byte buffer[6];
+    Serial.println("ip acquired...");
+    
+
+    Dhcp.getMacAddress(buffer);
+    Serial.print("mac address: ");
+    printArray(&Serial, ":", buffer, 6, 16);
+   
+    Dhcp.getLocalIp(buffer);
+    Serial.print("ip address: ");
+    printArray(&Serial, ".", buffer, 4, 10);
+    
+    Dhcp.getSubnetMask(buffer);
+    Serial.print("subnet mask: ");
+    printArray(&Serial, ".", buffer, 4, 10);
+    
+    Dhcp.getGatewayIp(buffer);
+    Serial.print("gateway ip: ");
+    printArray(&Serial, ".", buffer, 4, 10);
+    
+    Dhcp.getDhcpServerIp(buffer);
+    Serial.print("dhcp server ip: ");
+    printArray(&Serial, ".", buffer, 4, 10);
+    
+
+    
+    Serial.println("connecting...");
+
+    if (client.connect()) {
+      Serial.println("connected");
+      client.println("GET /search?q=arduino HTTP/1.0");
+      client.println();
+    } else {
+      Serial.println("connection failed");
+    }
+    
+  }
+  else{
+    Serial.println("unable to acquire ip address...");
+  }  //  if(result == 1) Ethernet connection
+#endif    
  
-  persist.gateway[0] = 192;
-  persist.gateway[1] = 168;
-  persist.gateway[2] = 26;
-  persist.gateway[3] = 1;
- 
-  Serial.begin(115200);                    // connect to the serial port
-  Serial.println("Kegger Begin");
-  Wire.begin();
 
   // Temperature Sensor Init
   Wire.beginTransmission(TP1_ADDR);
@@ -261,3 +316,17 @@ temperature ctof(temperature input)
 }
  
 
+void printArray(Print *output, char* delimeter, byte* data, int len, int base)
+{
+  char buf[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  
+  for(int i = 0; i < len; i++)
+  {
+    if(i != 0)
+      output->print(delimeter);
+      
+    output->print(itoa(data[i], buf, base));
+  }
+  
+  output->println();
+}

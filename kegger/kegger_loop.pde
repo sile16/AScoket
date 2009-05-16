@@ -6,8 +6,20 @@
  ************************************/
 void   loop()                     // run over and over again
 {
-  word scale_volts;
 
+
+#ifdef ETHERNET
+  if (client.available()) {
+      char c = client.read();
+      Serial.print(c);
+    }
+
+  if (!client.connected()) {
+      Serial.println();
+      Serial.println("disconnecting.");
+      client.stop();
+  }
+#endif   
  
 //**********************************************************************
 //*******  Timer 1
@@ -106,7 +118,7 @@ void   loop()                     // run over and over again
     digitalWrite(LED_PIN, ! digitalRead(LED_PIN));
  //   LCD.setBacklight(tempByte);
 
-#ifdef  SIMULATE_TEMPERATURE
+#ifdef  SIMULATE
   if(compPower) {   //simulate temp increasing by .1 degrees Celcius ever 1 second,  10 seconds for 1 degree
     currTemp.lo -= 0x10;
     if(currTemp.lo > 99) {
@@ -121,7 +133,15 @@ void   loop()                     // run over and over again
       currTemp.hi++;
     }
     
+  } //end if(compPower)
+  
+  if(scale_volts <= 0) {
+    scale_volts = 10000; //10,000 is about 80lbs
   }
+  else {
+    scale_volts = scale_volts-100;
+  }
+  
 #else  // not simulating, read actual temp from sensor board
   //Read in current temperature
   tempByte = READ_TP;
@@ -132,9 +152,8 @@ void   loop()                     // run over and over again
   Wire.requestFrom(TP1_ADDR,2);
   currTemp.hi = Wire.receive();
   currTemp.lo = ((word)(Wire.receive() >> 4) * 625) / 100;
-
-#endif
-//  Serial.print("   Temp: ");
+  
+  //  Serial.print("   Temp: ");
 //  Serial.print(curr_temp_hi,DEC);
 //  Serial.print(".");
 //  Serial.print(curr_temp_lo,DEC);
@@ -152,6 +171,9 @@ void   loop()                     // run over and over again
 // Serial.print("  Scale: ");
 // Serial.println(scale_volts,DEC);
   //count1++;
+
+#endif
+
   
   
   
