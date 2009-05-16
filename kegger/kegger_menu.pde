@@ -19,22 +19,23 @@ void showMenu(int state){
   char weightUnit[8];
   char myUnit[8];
   temperature displayTemp;
-  int displayWt;
-  int displayWtPercent;
-  int displayWtPints;
+  word displayWt;
+  word displayWtPercent;
+  byte displayWtPints;
 
   displayTemp=currTemp;  //displayTemp is Metric by default
+  //Changes by Matt, don't use floating point numbers......  they use up a ton of code space.
   //displayWt=(((float)scale_volts*.009696)-14)*.45359237; //displayWt is converted to US then Metric here
-  displayWt=(int)(((scale_volts*.009696)-14)*.45359237); //displayWt is converted to US then Metric here
-  displayWtPercent=(int)(100*(scale_volts/persist.kegTareFull));
-  displayWtPints=(int)(124*(scale_volts/persist.kegTareFull));
+  displayWtPercent=(100*((long)scale_volts - persist.kegTareEmpty))/(persist.kegTareFull-persist.kegTareEmpty);
+  displayWtPints=(byte)((displayWtPercent*124)/100);
+  displayWt=(byte)((displayWtPercent*50)/100)+14;   //50kg of beer plus 14kg for the keg container
     
   if (!persist.useMetric){
     sprintf(myUnit,"US");
     sprintf(tempUnit,"%cF",(char)0xDF);
     sprintf(weightUnit,"lb");
     displayTemp = ctof(currTemp);
-    displayWt = displayWt/.45359237;
+    displayWt = (displayWt*22)/10;
   }
   else {
     sprintf(myUnit,"M");
@@ -66,7 +67,7 @@ void showMenu(int state){
       LCD.setCursor(0,0);
       LCD.print(buf);
 
-      sprintf(buf,"%d%s %4d",displayWt,weightUnit,displayWtPints);
+      sprintf(buf,"%d%s %4dpints",displayWt,weightUnit,displayWtPints);
       LCD.setCursor(0,1);
       LCD.print(buf);
       

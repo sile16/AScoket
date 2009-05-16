@@ -135,14 +135,12 @@ void   loop()                     // run over and over again
     
   } //end if(compPower)
   
-  if(scale_volts <= 0) {
-    scale_volts = 10000; //10,000 is about 80lbs
+  if(scale_volts <=  persist.kegTareEmpty) {
+    scale_volts = persist.kegTareFull; //10,000 is about 80lbs
   }
   else {
-    scale_volts = scale_volts-100;
+    scale_volts = scale_volts - 100;
   }
-
-  persist.kegTareFull = 10500;
   
 #else  // not simulating, read actual temp from sensor board
   //Read in current temperature

@@ -14,8 +14,9 @@
  * BEGIN: Compile Options *
  **************************/
  
-#define SIMULATE    //simulates temperature changes, use for testing w/o real temp sensor, otherwise comment out for real operation
-//#define ETHERNET
+#define SIMULATE             //simulates temperature changes, use for testing w/o real temp sensor, otherwise comment out for real operation
+//#define ETHERNET           //Adds ethernet capability
+#define INITIALIZE_PERSIST   //Initializes persitant values
 
 //END: Compile Options *
 
@@ -113,7 +114,6 @@ static struct{
    byte server[50];        //Server hostname to send Updates to.
    byte server_path[10];   //Path on server to send updates
  
-
 } persist;
 
 
@@ -185,18 +185,28 @@ void setup()                    // run once, when the sketch starts
   Serial.println("Kegger Begin");
   Wire.begin();
 
+
+#ifdef INITIALIZE_PERSIST
+  persist.kegTareFull = 10500;
+  persist.kegTareEmpty = 500;
   //Initialize kegTempGap
   if ((int)persist.kegTempGap >10)
     persist.kegTempGap = 2;
- 
-#ifdef ETHERNET
-  //network setup
+        
   persist.mac[0] = 0xDE; 
   persist.mac[1] = 0xAD;
   persist.mac[2] = 0xBE;
   persist.mac[3] = 0xEF;
   persist.mac[4] = 0xFE;
   persist.mac[5] = 0xED;
+  
+  savePersist();
+
+#endif //#ifdef INITIALIZE_PERSIST
+ 
+#ifdef ETHERNET
+  //network setup
+  
   
   Serial.println("getting ip...");
   
