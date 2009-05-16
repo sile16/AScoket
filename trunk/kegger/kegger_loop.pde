@@ -141,6 +141,8 @@ void   loop()                     // run over and over again
   else {
     scale_volts = scale_volts-100;
   }
+
+  persist.kegTareFull = 10500;
   
 #else  // not simulating, read actual temp from sensor board
   //Read in current temperature

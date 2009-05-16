@@ -15,7 +15,7 @@
  **************************/
  
 #define SIMULATE    //simulates temperature changes, use for testing w/o real temp sensor, otherwise comment out for real operation
-#define ETHERNET
+//#define ETHERNET
 
 //END: Compile Options *
 
@@ -65,18 +65,20 @@
 //          stateMenu[0][3] is ptr to state when DOWN is pressed
 //    NOTE: stateMenu[0][4] is ptr to state when LEFT is pressed
 //    Current Menu Order: 0<->1<->6<->8<->3<->0
-static int stateMenu[][4] = { {3,0,1,0},  //Screen 0: Idle
-                              {0,2,6,0},  //Screen 1: Set Temp
-                              {2,4,2,1},  //Screen 2:   Set Temp 2
-                              {10,5,0,0},  //Screen 3: About
-                              {0,0,0,0},  //Screen 4: Saved
-                              {5,0,5,3},  //Screen 5:   About 2
-                              {1,7,8,0},  //Screen 6: Set Unit
-                              {7,4,7,6},  //Screen 7:   Set Unit 2
-                              {6,9,10,0},  //Screen 8: Set Contrast
-                              {9,4,9,8},  //Screen 9:   Set Contrast 2
-                              {8,11,3,0},  //Screen 10: Set Temp Gap
-                              {11,4,11,10},  //Screen 11:   Set Temp Gap 2
+static int stateMenu[][4] = { {3,0,1,0},    //Screen 00: Idle
+                              {0,2,6,0},    //Screen 01: Set Temp
+                              {2,4,2,1},    //Screen 02:   Set Temp 2
+                              {12,5,0,0},   //Screen 03: About
+                              {0,0,0,0},    //Screen 04: Saved
+                              {5,0,5,3},    //Screen 05:    About 2
+                              {1,7,8,0},    //Screen 06: Set Unit
+                              {7,4,7,6},    //Screen 07:    Set Unit 2
+                              {6,9,10,0},   //Screen 08: Set Contrast
+                              {9,4,9,8},    //Screen 09:    Set Contrast 2
+                              {8,11,12,0},  //Screen 10: Set Temp Gap
+                              {11,4,11,10}, //Screen 11:    Set Temp Gap 2
+                              {10,13,3,0},  //Screen 12: Keg Reset/Tare
+                              {13,4,13,12}, //Screen 13:    Keg Reset/Tare 2
                             };
 static int currState = 0;
 static int prevState = currState;
@@ -84,13 +86,11 @@ static boolean compPower = true;
 
 temperature currTemp;
 static byte newKegTemp;
-static byte kegPercent = 69;
-static int kegWt = 148;
-static int kegPints = 201;
 static byte buttonPressed = 255;
 
 static byte prevContrast;
 static byte prevKegTempGap;
+static byte prevKegTareFull;
 static boolean prevUseMetric;
 
 static byte prevButtonTransientState = 0;
