@@ -19,12 +19,22 @@ void showMenu(int state){
   char weightUnit[8];
   char myUnit[8];
   temperature displayTemp;
+  int displayWt;
+  int displayWtPercent;
+  int displayWtPints;
 
-  
+  displayTemp=currTemp;  //displayTemp is Metric by default
+  //displayWt=(((float)scale_volts*.009696)-14)*.45359237; //displayWt is converted to US then Metric here
+  displayWt=(int)(((scale_volts*.009696)-14)*.45359237); //displayWt is converted to US then Metric here
+  displayWtPercent=(int)(100*(scale_volts/persist.kegTareFull));
+  displayWtPints=(int)(124*(scale_volts/persist.kegTareFull));
+    
   if (!persist.useMetric){
     sprintf(myUnit,"US");
     sprintf(tempUnit,"%cF",(char)0xDF);
-    sprintf(weightUnit,"lbs");
+    sprintf(weightUnit,"lb");
+    displayTemp = ctof(currTemp);
+    displayWt = displayWt/.45359237;
   }
   else {
     sprintf(myUnit,"M");
@@ -50,18 +60,13 @@ void showMenu(int state){
       else if ((prevState == 0) && (buttonPressed == 3))
         LCD.setContrast(++persist.contrast);
       
-      displayTemp=currTemp;
-      if (!persist.useMetric){
-        displayTemp = ctof(currTemp);
-      }
-        
       buttonPressed = 255;
       //Generate strings for LCD output
-      sprintf(buf,"%02d.%02d%s %c  %d%-3c",displayTemp.hi,displayTemp.lo,tempUnit,compIcon,kegPercent,(char)0x25);
+      sprintf(buf,"%02d.%02d%s %c  %d%-3c",displayTemp.hi,displayTemp.lo,tempUnit,compIcon,displayWtPercent,(char)0x25);
       LCD.setCursor(0,0);
       LCD.print(buf);
 
-      sprintf(buf,"%3d%s %4dcups",kegWt,weightUnit,kegPints);
+      sprintf(buf,"%d%s %4d",displayWt,weightUnit,displayWtPints);
       LCD.setCursor(0,1);
       LCD.print(buf);
       
@@ -261,6 +266,44 @@ void showMenu(int state){
       LCD.setCursor(0,1);
       LCD.print("X=Back  Save=O");
       break;
+
+    /************************
+     * KEG RESET            *
+     ************************/
+    case 12:
+    
+      if(prevState == 13)
+        persist.kegTareFull = prevKegTareFull;
+      else
+        prevKegTareFull = persist.kegTareFull; // Gives ability to revert (w/ left arrow from below state)
+    
+      sprintf(buf,"KEG RESET      ");
+      
+      LCD.setCursor(0,0);
+      LCD.print(buf);
+      LCD.setCursor(0,1);
+      LCD.print(buf2);
+      break;
+
+    /************************
+     * KEG RESET 2          *
+     ************************/
+    case 13:
+
+      if ((buttonPressed == 2) && (persist.kegTempGap > 0))
+        persist.kegTareFull = persist.kegTareFull--;
+      else if ((buttonPressed == 0) && (persist.kegTempGap < 255))
+        persist.kegTareFull = persist.kegTareFull++;
+
+      buttonPressed = 255;  
+      sprintf(buf,"Full Keg: %2d%s  ",(int)persist.kegTareFull,weightUnit);
+    
+      LCD.setCursor(0,0);
+      LCD.print(buf);
+      LCD.setCursor(0,1);
+      LCD.print("X=Back  Save=O");
+      break;
+
 
   }  //switch
 
