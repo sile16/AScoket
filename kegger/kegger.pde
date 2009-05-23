@@ -1,3 +1,5 @@
+#include <Ethernet.h>
+
 #include <LCD_I2C.h>
 #include <stdio.h>
 #include <Wire.h>
@@ -6,8 +8,10 @@
 #include <avr/io.h>
 #include "kegger.h"
 
-#include <Ethernet.h>
+#include <Client.h>
+
 #include "Dhcp.h"
+#include "Dns.h"
 
 
 /**************************
@@ -16,7 +20,7 @@
  
 #define SIMULATE             //simulates temperature changes, use for testing w/o real temp sensor, otherwise comment out for real operation
 //#define ETHERNET           //Adds ethernet capability
-#define INITIALIZE_PERSIST   //Initializes persitant values
+//#define INITIALIZE_PERSIST   //Initializes persitant values
 
 //END: Compile Options *
 
@@ -111,8 +115,8 @@ static struct{
    
    //Adding network stuff towards end as this is the most unstable part.
    byte mac[6];            //MAC Address, should be unique to every keggorator
-   byte server[50];        //Server hostname to send Updates to.
-   byte server_path[10];   //Path on server to send updates
+   char server[50];        //Server hostname to send Updates to.
+   char server_path[10];   //Path on server to send updates
  
 } persist;
 
@@ -125,9 +129,28 @@ static byte tempByte;
 word scale_volts;
 
 #ifdef ETHERNET
-byte server[] = { 64, 233, 187, 99 }; // Google
-Client client(server, 80);
-boolean ipAcquired = false;
+#define DNS_RESOLVE            0
+#define DNS_WORKING            1
+#define DNS_SUCCESS            2
+#define DNS_FAILURE            3
+#define SERVER_CONNECT         4
+#define SERVER_CONNECTING      5
+#define SERVER_SEND            6
+#define SERVER_RECEIVE         7
+#define NET_IDLE             255
+
+byte ipAquired = false;
+byte networkState = NET_IDLE;
+byte server_dns[4] = {192,168,26,1};
+byte server_ip[4] = { 192, 168, 26, 30 }; // Google
+//byte server_subnet[4] = {255,255,255,0};
+
+
+
+DnsClass Dns;
+Client client;
+
+
 #endif
 // END: Globals  
 
@@ -200,6 +223,28 @@ void setup()                    // run once, when the sketch starts
   persist.mac[4] = 0xFE;
   persist.mac[5] = 0xED;
   
+  persist.server[0] = 'g';
+  persist.server[1] = 'r';
+  persist.server[2] = 'a';
+  persist.server[3] = 'n';
+  persist.server[4] = 'd';
+  persist.server[5] = 'm';
+  persist.server[6] = 'a';
+  persist.server[7] = '.';
+  persist.server[8] = 's';
+  persist.server[9] = 'i';
+  persist.server[10] = 'l';
+  persist.server[11] = 'e';
+  persist.server[12] = '.';
+  persist.server[13] = 'o';
+  persist.server[14] = 'r';
+  persist.server[15] = 'g';
+  persist.server[16] = 0;
+  
+
+
+        
+  
   savePersist();
 
 #endif //#ifdef INITIALIZE_PERSIST
@@ -210,19 +255,14 @@ void setup()                    // run once, when the sketch starts
   
   Serial.println("getting ip...");
   
-  int result = Dhcp.beginWithDHCP(persist.mac);
+  ipAquired = 1;//Dhcp.beginWithDHCP(persist.mac);
+  Ethernet.begin(persist.mac,server_ip);
  
-  if(result == 1)
+  if(ipAquired == 1)
   {
-    ipAcquired = true;
     byte buffer[6];
     Serial.println("ip acquired...");
-    
-
-    Dhcp.getMacAddress(buffer);
-    Serial.print("mac address: ");
-    printArray(&Serial, ":", buffer, 6, 16);
-   
+  
     Dhcp.getLocalIp(buffer);
     Serial.print("ip address: ");
     printArray(&Serial, ".", buffer, 4, 10);
@@ -235,27 +275,19 @@ void setup()                    // run once, when the sketch starts
     Serial.print("gateway ip: ");
     printArray(&Serial, ".", buffer, 4, 10);
     
-    Dhcp.getDhcpServerIp(buffer);
-    Serial.print("dhcp server ip: ");
-    printArray(&Serial, ".", buffer, 4, 10);
+  //  Dhcp.getDnsServerIp(server_dns);
+    Serial.print("DNS server ip: ");
+    printArray(&Serial, ".", server_dns, 4, 10); 
     
-
-    
-    Serial.println("connecting...");
-
-    if (client.connect()) {
-      Serial.println("connected");
-      client.println("GET /search?q=arduino HTTP/1.0");
-      client.println();
-    } else {
-      Serial.println("connection failed");
-    }
+    Dns.init("grandma.sile.org",server_dns);
+    networkState = DNS_RESOLVE;
+    delay(3000);
     
   }
   else{
     Serial.println("unable to acquire ip address...");
   }  //  if(result == 1) Ethernet connection
-#endif    
+#endif  //#ifdef ETHERNET
  
 
   // Temperature Sensor Init
