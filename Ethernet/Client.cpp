@@ -19,6 +19,12 @@ Client::Client(uint8_t *ip, uint16_t port) {
   _port = port;  
 }
 
+void Client::init(uint8_t *ip, uint16_t port) 
+{
+  _ip = ip;
+  _port = port;  
+}
+
 uint8_t Client::connect() {
   _sock = 255;
   

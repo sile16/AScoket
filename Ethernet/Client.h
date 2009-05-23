@@ -10,8 +10,10 @@ private:
   uint8_t *_ip;
   uint16_t _port;
 public:
+  Client(){};
   Client(uint8_t);
   Client(uint8_t *, uint16_t);
+  void init(uint8_t *ip, uint16_t port);
   uint8_t status();
   uint8_t connect();
   virtual void write(uint8_t);
