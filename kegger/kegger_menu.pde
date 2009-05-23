@@ -67,7 +67,7 @@ void showMenu(int state){
       LCD.setCursor(0,0);
       LCD.print(buf);
 
-      sprintf(buf,"%d%s %4dpints",displayWt,weightUnit,displayWtPints);
+      sprintf(buf,"%d%s %dpints ",displayWt,weightUnit,displayWtPints);
       LCD.setCursor(0,1);
       LCD.print(buf);
       
