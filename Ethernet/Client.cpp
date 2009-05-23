@@ -19,12 +19,6 @@ Client::Client(uint8_t *ip, uint16_t port) {
   _port = port;  
 }
 
-void Client::init(uint8_t *ip, uint16_t port) 
-{
-  _ip = ip;
-  _port = port;  
-}
-
 uint8_t Client::connect() {
   _sock = 255;
   
@@ -39,8 +33,7 @@ uint8_t Client::connect() {
     
   _srcport++;
     
-  // XXX: what port should we connect from?
-  socket(_sock, Sn_MR_TCP, _port, 1024 + _srcport);
+  socket(_sock, Sn_MR_TCP, 1024 + _srcport, 0);
   
   if (!::connect(_sock, _ip, _port))
     return 0;
