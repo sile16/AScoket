@@ -9,16 +9,76 @@ void   loop()                     // run over and over again
 
 
 #ifdef ETHERNET
-  if (client.available()) {
-      char c = client.read();
-      Serial.print(c);
-    }
 
-  if (!client.connected()) {
-      Serial.println();
-      Serial.println("disconnecting.");
-      client.stop();
-  }
+  switch(networkState){
+     case DNS_RESOLVE:
+       Serial.println("DNS Resolve");
+       if(Dns.resolve()) {
+         networkState=DNS_WORKING;
+         Serial.println("DNS Connected");
+       }
+       else {
+         networkState=NET_IDLE;
+         Serial.println("DNS failed to connect");
+         break;
+       }      
+
+    case DNS_WORKING:
+       tempByte = Dns.finished();
+       if(tempByte == 1) {//success
+         networkState = DNS_SUCCESS;
+       }
+       else if(tempByte > 1) { //Failure
+         Serial.println("DNS Error");
+         networkState = NET_IDLE;   
+       }
+       break;
+       
+    case DNS_SUCCESS:
+       Dns.getIP(server_ip);
+       Serial.print("DNS IP: ");
+       printArray(&Serial, ".", server_ip, 4, 10);
+       client.init(server_ip,80);
+       networkState = SERVER_CONNECT;
+       break;
+       
+      case SERVER_CONNECT:
+       Serial.println("connecting...");
+       if(client.connect()) {
+          networkState = SERVER_CONNECTING;
+       }   
+       else  {
+         Serial.println("Server connect failed");
+         networkState = NET_IDLE;
+       }   
+       break; 
+       
+    case SERVER_CONNECTING:
+       networkState = SERVER_SEND;
+       break;
+       
+    case SERVER_SEND:
+      client.println("GET / HTTP/1.0");
+      client.println();
+      networkState = SERVER_RECEIVE;
+      break;
+      
+    case SERVER_RECEIVE:  
+       if (client.available()) {
+         char c = client.read();
+         Serial.print(c);
+       }
+
+       if (!client.connected()) {
+        Serial.println();
+         Serial.println("disconnecting.");
+         client.stop();
+       }
+       networkState = NET_IDLE;
+       break; 
+  
+  };  //switch(networkState){ 
+     
 #endif   
  
 //**********************************************************************
@@ -190,10 +250,17 @@ void   loop()                     // run over and over again
     if(currTemp.hi <= persist.kegTemp-3)
       compPower = false;
   }
+  digitalWrite(COMPRESSOR_PIN,compPower);
 
   
     
   showMenu(currState);
+  
+#ifdef ETHERNET
+  if(ipAquired && networkState == NET_IDLE)
+     networkState = DNS_RESOLVE;
+#endif
+  
   
  }//endif 1 sec timer
 
