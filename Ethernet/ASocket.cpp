@@ -29,13 +29,13 @@ ASocket::ASocket()
 uint8 ASocket::initTCP(uint16 port ) 
 {
 	// if don't set the source port, set local_port number.
-	return init(Sn_MR_UDP,port,0);
+	return init(Sn_MR_TCP,port,0);
 }
 
 uint8 ASocket::initUDP(uint16 port ) 
 {
 	// if don't set the source port, set local_port number.
-	return init(Sn_MR_TCP,port,0);
+	return init(Sn_MR_UDP,port,0);
 }
 		
 //Allocate local port automatically
@@ -81,7 +81,7 @@ uint8 ASocket::init(uint8 protocol, uint16 port, uint8 flag )
 	Serial.print("_sock=");
 	Serial.println(_sock,DEC);
 	
-	return socket(_sock, Sn_MR_UDP, 53, 0);		
+	return socket(_sock, protocol, 53, 0);		
 }
 	
 void ASocket::close() // Close socket, release back into pool
@@ -104,34 +104,30 @@ void ASocket::send() // Send Packet
 	//Send command
 	IINCHIP_WRITE(Sn_CR(_sock),Sn_CR_SEND);
 	
+	while( IINCHIP_READ(Sn_CR(_sock)) ) 
+			;
+	
 }
 
 uint8 ASocket::isSendCompleteUDP()
 {
-
-		if ( IINCHIP_READ(Sn_CR(_sock)) )   //not complete
-		   return 0;
+	if( (IINCHIP_READ(Sn_IR(_sock)) & Sn_IR_SEND_OK) != Sn_IR_SEND_OK )  {
+		if (IINCHIP_READ(Sn_IR(_sock)) & Sn_IR_TIMEOUT) {
 			
-
-	   while ( (IINCHIP_READ(Sn_IR(_sock)) & Sn_IR_SEND_OK) != Sn_IR_SEND_OK ) 
-	{
-	      if (IINCHIP_READ(Sn_IR(_sock)) & Sn_IR_TIMEOUT)
-
-			{
-				IINCHIP_WRITE(Sn_IR(_sock), (Sn_IR_SEND_OK | Sn_IR_TIMEOUT)); /* clear SEND_OK & TIMEOUT */
-
-			    return 1;
-			}
-			return 0;  //still processing
+			IINCHIP_WRITE(Sn_IR(_sock), (Sn_IR_SEND_OK | Sn_IR_TIMEOUT)); /* clear SEND_OK & TIMEOUT */
+			return 1;
 		}
-		return 1;  //finished
+		 
+	    return 1;
+	}
+
+
+	IINCHIP_WRITE(Sn_IR(_sock), Sn_IR_SEND_OK);
+	return 1;
 }
 
 uint8 ASocket::isSendCompleteTCP()
 {
-  if( IINCHIP_READ(Sn_CR(_sock)) ) return 0;  
-		
-	/* ------- */
 
 /* +2008.01 bj */	
 	if ( (IINCHIP_READ(Sn_IR(_sock)) & Sn_IR_SEND_OK) != Sn_IR_SEND_OK ) 
@@ -257,10 +253,11 @@ void ASocket::connectTCP(uint8 * addr, uint16 port)
 
 uint8 ASocket::isConnectedTCP()
 {
-	if ( IINCHIP_READ(Sn_CR(_sock)) ) return 0;
-	return 1;
+  uint8_t s = status();
+  return s == SOCK_ESTABLISHED;
 
 }
+
 
 // disconnect the connection
 void ASocket::disconnectTCP()
@@ -276,12 +273,12 @@ void ASocket::disconnectTCP()
  // New TCP Packet
 void ASocket::beginPacketTCP()
 {
-	Serial.print("Begin TCP ptr=");
-	Serial.println(_write_ptr,DEC);
-	
 	//Initialize the write pointer
 	_write_ptr = IINCHIP_READ(Sn_TX_WR0(_sock));
     _write_ptr = ((_write_ptr & 0x00ff) << 8) + IINCHIP_READ(Sn_TX_WR0(_sock) + 1);
+	
+	Serial.print("Begin TCP ptr=");
+	Serial.println(_write_ptr,DEC);
 
 }
 
