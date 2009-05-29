@@ -7,7 +7,7 @@
 void   loop()                     // run over and over again
 {
 
-
+ 
 #ifdef ETHERNET
 
   switch(networkState){
@@ -38,44 +38,62 @@ void   loop()                     // run over and over again
        Dns.getIP(server_ip);
        Serial.print("DNS IP: ");
        printArray(&Serial, ".", server_ip, 4, 10);
-       client.init(server_ip,80);
-       networkState = SERVER_CONNECT;
+       if(as.initTCP(0)) {
+         networkState = SERVER_CONNECT;
+       }
+       else{
+         networkState = NET_IDLE;
+         Serial.println("TCP init failed");
+       }
        break;
        
-      case SERVER_CONNECT:
+    case SERVER_CONNECT:
        Serial.println("connecting...");
-       if(client.connect()) {
-          networkState = SERVER_CONNECTING;
-       }   
-       else  {
-         Serial.println("Server connect failed");
-         networkState = NET_IDLE;
-       }   
+       as.connectTCP(server_ip,80);
+       networkState = SERVER_CONNECTING;
        break; 
        
     case SERVER_CONNECTING:
-       networkState = SERVER_SEND;
+       if(as.isConnectedTCP())
+       {
+         networkState = SERVER_SEND;
+         as.beginPacketTCP();
+       }
+       else if (as.error())
+       {
+         Serial.println("Connect failed");
+         networkState = NET_IDLE;
+       }
        break;
        
     case SERVER_SEND:
-      client.println("GET / HTTP/1.0");
-      client.println();
+      char net_header[] = "POST /kegger_web HTTP/1.1\nHOST: ";
+      
+      as.write((uint8*)net_header,strlen(net_header));  //write header
+      as.write((uint8*)persist.server,strlen(persist.server));  //write server hostname
+    
+      tempByte = (sizeof(persist) - sizeof(persist.server)) + 5;   //Version # , temp & weight
+      sprintf(net_header,"\nContent Length: %d\n\n",tempByte);  //Write Content Length
+      as.write((uint8*)net_header,strlen(net_header));
+
+      as.write((uint8*)"BINDATA=",8);
+      net_header[0] = KEGGER_VERSION;
+      as.write((uint8*)net_header,1);
+      as.write((uint8*)&persist,sizeof(persist)-sizeof(persist.server));   //Write  all settings
+      as.write((uint8*)&currTemp,2);     //write temperature
+      as.write((uint8*)&scale_volts,2);   //write weight
+      as.send();
+      
       networkState = SERVER_RECEIVE;
       break;
-      
+      /*
     case SERVER_RECEIVE:  
-       if (client.available()) {
-         char c = client.read();
-         Serial.print(c);
+       if(as.isSendCompleteTCP())
+       {
+         as.close();
+         networkState = NET_IDLE;
        }
-
-       if (!client.connected()) {
-        Serial.println();
-         Serial.println("disconnecting.");
-         client.stop();
-       }
-       networkState = NET_IDLE;
-       break; 
+       break;  */
   
   };  //switch(networkState){ 
      

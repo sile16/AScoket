@@ -8,7 +8,6 @@
 #include <avr/io.h>
 #include "kegger.h"
 
-#include <Client.h>
 
 #include "Dhcp.h"
 #include "Dns.h"
@@ -17,9 +16,10 @@
 /**************************
  * BEGIN: Compile Options *
  **************************/
- 
+
+#define KEGGER_VERSION      37
 #define SIMULATE             //simulates temperature changes, use for testing w/o real temp sensor, otherwise comment out for real operation
-//#define ETHERNET           //Adds ethernet capability
+#define ETHERNET           //Adds ethernet capability
 //#define INITIALIZE_PERSIST   //Initializes persitant values
 
 //END: Compile Options *
@@ -115,8 +115,9 @@ static struct{
    
    //Adding network stuff towards end as this is the most unstable part.
    byte mac[6];            //MAC Address, should be unique to every keggorator
+   
+   // Keep server at the end of persist 
    char server[50];        //Server hostname to send Updates to.
-   char server_path[10];   //Path on server to send updates
  
 } persist;
 
@@ -148,7 +149,7 @@ byte server_ip[4] = { 192, 168, 26, 30 }; // Google
 
 
 DnsClass Dns;
-Client client;
+ASocket as;
 
 
 #endif
