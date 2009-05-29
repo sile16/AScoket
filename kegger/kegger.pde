@@ -224,15 +224,15 @@ void setup()                    // run once, when the sketch starts
   persist.mac[4] = 0xFE;
   persist.mac[5] = 0xED;
   
-  persist.server[0] = 'g';
-  persist.server[1] = 'r';
-  persist.server[2] = 'a';
-  persist.server[3] = 'n';
-  persist.server[4] = 'd';
-  persist.server[5] = 'm';
-  persist.server[6] = 'a';
-  persist.server[7] = '.';
-  persist.server[8] = 's';
+  persist.server[0] = 's';
+  persist.server[1] = 'i';
+  persist.server[2] = 'l';
+  persist.server[3] = 'e';
+  persist.server[4] = '.';
+  persist.server[5] = 'o';
+  persist.server[6] = 'r';
+  persist.server[7] = 'g';
+  persist.server[8] = 0;
   persist.server[9] = 'i';
   persist.server[10] = 'l';
   persist.server[11] = 'e';
@@ -256,8 +256,8 @@ void setup()                    // run once, when the sketch starts
   
   Serial.println("getting ip...");
   
-  ipAquired = 1;//Dhcp.beginWithDHCP(persist.mac);
-  Ethernet.begin(persist.mac,server_ip);
+  ipAquired = Dhcp.beginWithDHCP(persist.mac);
+//  Ethernet.begin(persist.mac,server_ip);
  
   if(ipAquired == 1)
   {
@@ -276,11 +276,11 @@ void setup()                    // run once, when the sketch starts
     Serial.print("gateway ip: ");
     printArray(&Serial, ".", buffer, 4, 10);
     
-  //  Dhcp.getDnsServerIp(server_dns);
+    Dhcp.getDnsServerIp(server_dns);
     Serial.print("DNS server ip: ");
     printArray(&Serial, ".", server_dns, 4, 10); 
     
-    Dns.init("grandma.sile.org",server_dns);
+    Dns.init(persist.server,server_dns);
     networkState = DNS_RESOLVE;
     delay(3000);
     

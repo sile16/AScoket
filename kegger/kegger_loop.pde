@@ -9,6 +9,7 @@ void   loop()                     // run over and over again
 
  
 #ifdef ETHERNET
+char net_header[] = "POST /kegger_web HTTP/1.1\nHOST: ";
 
   switch(networkState){
      case DNS_RESOLVE:
@@ -56,6 +57,7 @@ void   loop()                     // run over and over again
     case SERVER_CONNECTING:
        if(as.isConnectedTCP())
        {
+         Serial.println("Connected");
          networkState = SERVER_SEND;
          as.beginPacketTCP();
        }
@@ -67,7 +69,7 @@ void   loop()                     // run over and over again
        break;
        
     case SERVER_SEND:
-      char net_header[] = "POST /kegger_web HTTP/1.1\nHOST: ";
+      
       
       as.write((uint8*)net_header,strlen(net_header));  //write header
       as.write((uint8*)persist.server,strlen(persist.server));  //write server hostname
@@ -86,14 +88,14 @@ void   loop()                     // run over and over again
       
       networkState = SERVER_RECEIVE;
       break;
-      /*
-    case SERVER_RECEIVE:  
+
+      case SERVER_RECEIVE:  
        if(as.isSendCompleteTCP())
        {
          as.close();
          networkState = NET_IDLE;
        }
-       break;  */
+       break;  
   
   };  //switch(networkState){ 
      
@@ -109,16 +111,16 @@ void   loop()                     // run over and over again
     
     //  Read in current button values into tempByte
     tempByte =0;
-    if( !digitalRead(UP_BUTTON_PIN)){
+    if( digitalRead(UP_BUTTON_PIN)){
       tempByte = 1;
     }
-    if( !digitalRead(DOWN_BUTTON_PIN)){
+    if( digitalRead(DOWN_BUTTON_PIN)){
       tempByte += 2;
     }
-    if( !digitalRead(LEFT_BUTTON_PIN)){
+    if( digitalRead(LEFT_BUTTON_PIN)){
       tempByte += 4;
     }
-    if( !digitalRead(RIGHT_BUTTON_PIN)){
+    if( digitalRead(RIGHT_BUTTON_PIN)){
       tempByte +=8;
     }
    
@@ -188,6 +190,11 @@ void   loop()                     // run over and over again
   {
     timer_status &= ~0x04;
     
+    if(networkState == SERVER_CONNECTING)
+    {
+      Serial.print("Sock Status: ");
+      Serial.print(as.status(),DEC);
+    }
  
     
     tempByte = ! digitalRead(LED_STATUS2_PIN);
