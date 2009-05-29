@@ -65,6 +65,8 @@ uint8_t DnsClass::resolve()
 	Serial.println("Send");
 	_as.send();  //actually send the UDP packet
 	
+	while(!_as.isSendCompleteUDP());  //wait for udp packet to finish sending
+	
 	return 1; //  success	
 	
 }
