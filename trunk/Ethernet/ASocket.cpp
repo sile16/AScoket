@@ -13,7 +13,7 @@ extern "C" {
   #include "types.h"
   #include "w5100.h"
   #include "socket.h"
-  #include "spi.h"
+  //#include "spi.h"
 }
 
 #include "WProgram.h"
@@ -104,32 +104,53 @@ void ASocket::send() // Send Packet
 	//Send command
 	IINCHIP_WRITE(Sn_CR(_sock),Sn_CR_SEND);
 	
-	
-	while( IINCHIP_READ(Sn_CR(_sock)) )
-		;	
-		
-	while ( (IINCHIP_READ(Sn_IR(_sock)) & Sn_IR_SEND_OK) != Sn_IR_SEND_OK )
-	{
-		if(sendStatus() != 2)
-		{
-			return;
-		}
-	}
-	
 }
 
-uint8 ASocket::sendStatus()   //0 - success, 1-timeout, 2 - still processing
+uint8 ASocket::isSendCompleteUDP()
 {
-	if((IINCHIP_READ(Sn_IR(_sock)) & Sn_IR_SEND_OK) != Sn_IR_SEND_OK ) 
+
+		if ( IINCHIP_READ(Sn_CR(_sock)) )   //not complete
+		   return 0;
+			
+
+	   while ( (IINCHIP_READ(Sn_IR(_sock)) & Sn_IR_SEND_OK) != Sn_IR_SEND_OK ) 
 	{
-	      if(IINCHIP_READ(Sn_IR(_sock)) & Sn_IR_TIMEOUT)
-		  {
-				return 1;  //timeout
-		  }
-		  return 2;
-	}
-	return 0;  //success
+	      if (IINCHIP_READ(Sn_IR(_sock)) & Sn_IR_TIMEOUT)
+
+			{
+				IINCHIP_WRITE(Sn_IR(_sock), (Sn_IR_SEND_OK | Sn_IR_TIMEOUT)); /* clear SEND_OK & TIMEOUT */
+
+			    return 1;
+			}
+			return 0;  //still processing
+		}
+		return 1;  //finished
 }
+
+uint8 ASocket::isSendCompleteTCP()
+{
+  if( IINCHIP_READ(Sn_CR(_sock)) ) return 0;  
+		
+	/* ------- */
+
+/* +2008.01 bj */	
+	if ( (IINCHIP_READ(Sn_IR(_sock)) & Sn_IR_SEND_OK) != Sn_IR_SEND_OK ) 
+	{
+		/* m2008.01 [bj] : reduce code */
+		if ( IINCHIP_READ(Sn_SR(_sock)) == SOCK_CLOSED )
+		{
+			close();
+			return 1;  //send finsihed but bad
+		}
+		return 0;  //still sending
+  	}
+	IINCHIP_WRITE(Sn_IR(_sock), Sn_IR_SEND_OK);
+
+  	return 1;  //send complete
+
+}
+
+
 
 
 // write data into send buffer
@@ -234,6 +255,13 @@ void ASocket::connectTCP(uint8 * addr, uint16 port)
 		while ( IINCHIP_READ(Sn_CR(_sock)) ) ;
 }
 
+uint8 ASocket::isConnectedTCP()
+{
+	if ( IINCHIP_READ(Sn_CR(_sock)) ) return 0;
+	return 1;
+
+}
+
 // disconnect the connection
 void ASocket::disconnectTCP()
 {
@@ -265,7 +293,7 @@ void ASocket::beginRecvTCP()
 }
 
 // Establish TCP connection (Passive connection)
-uint8 ASocket::listen()
+uint8 ASocket::listenTCP()
 {
 	if ( status() == SOCK_INIT)
 	{

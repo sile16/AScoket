@@ -28,12 +28,11 @@ class ASocket{
 		uint8 init(uint8 protocol, uint16 port, uint8 flag ) ;     //Allocates & initializes a socket
 		void close(); // Close socket, release back into pool
 		void send();  // Send Packet
-		uint8 sendStatus();   //0 - success, 1-timeout, 2 - still processing
+		uint8 status();   //0 - success, 1-timeout, 2 - still processing
 		void endRecv();
 		uint16 write(uint8 * buf, uint16 len); // write data into send buffer
 		void read(uint8 * buf, uint16 len);  // read data into read buffer
-		uint8 error();
-		
+		uint8 error(){return 0;};
 		uint16 available();
 		
 		
@@ -41,15 +40,18 @@ class ASocket{
 		uint8 initTCP(uint16 port ) ;
 		void connectTCP(uint8 * addr, uint16 port); // Establish TCP connection (Active connection)
 		void disconnectTCP(); // disconnect the connection
-		uint8 isConnected();  // find out if we are done connecting.
+		uint8 isConnectedTCP();  // find out if we are done connecting.
 		void beginPacketTCP(); // New TCP Packet
 		void beginRecvTCP();
-		uint8 listen();	// Establish TCP connection (Passive connection)
+		uint8 listenTCP();	// Establish TCP connection (Passive connection)
+		uint8 isSendCompleteTCP();
+		
 				
 		//UDP
 		uint8 initUDP(uint16 port ) ;
 		uint16 beginRecvUDP(uint8 * addr, uint16  *port);	// Receive a UDP Packet
 		void beginPacketUDP(uint8 * addr, uint16 port); // New TCP Packet
+		uint8 isSendCompleteUDP();
 
 		//IGMP
 		uint16 igmpsend(const uint8 * buf, uint16 len);
