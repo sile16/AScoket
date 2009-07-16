@@ -58,8 +58,13 @@ void showMenu(int state){
         
       if ((prevState == 0) && (buttonPressed == 1))
         LCD.setContrast(--persist.contrast);
-      else if ((prevState == 0) && (buttonPressed == 3))
+      else if ((prevState == 0) && (buttonPressed == 3)) {
         LCD.setContrast(++persist.contrast);
+#ifdef ETHERNET
+        if(ipAquired && networkState == NET_IDLE)
+        networkState = DNS_RESOLVE;
+#endif
+      }
       
       buttonPressed = 255;
       //Generate strings for LCD output
