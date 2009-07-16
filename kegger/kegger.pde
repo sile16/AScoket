@@ -116,7 +116,8 @@ static struct{
    //Adding network stuff towards end as this is the most unstable part.
    byte mac[6];            //MAC Address, should be unique to every keggorator
    
-   // Keep server at the end of persist 
+ 
+   // Keep server at the end of persist, this is becuase the network coded doesn't send this var since it's big and uneeded.
    char server[50];        //Server hostname to send Updates to.
  
 } persist;
@@ -130,6 +131,7 @@ static byte tempByte;
 word scale_volts;
 
 #ifdef ETHERNET
+#define NETWORK_VERSION  1
 #define DNS_RESOLVE            0
 #define DNS_WORKING            1
 #define DNS_SUCCESS            2
@@ -138,6 +140,7 @@ word scale_volts;
 #define SERVER_CONNECTING      5
 #define SERVER_SEND            6
 #define SERVER_RECEIVE         7
+#define SERVER_SEND_COMPLETE   8
 #define NET_IDLE             255
 
 byte ipAquired = false;
@@ -373,3 +376,4 @@ void printArray(Print *output, char* delimeter, byte* data, int len, int base)
   
   output->println();
 }
+

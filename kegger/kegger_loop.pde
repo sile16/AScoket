@@ -9,10 +9,11 @@ void   loop()                     // run over and over again
 
  
 #ifdef ETHERNET
-char net_header[] = "POST /kegger_web HTTP/1.1\nHOST: ";
+
 
   switch(networkState){
      case DNS_RESOLVE:
+       Serial.println("=====================================================");
        Serial.println("DNS Resolve");
        if(Dns.resolve()) {
          networkState=DNS_WORKING;
@@ -61,40 +62,51 @@ char net_header[] = "POST /kegger_web HTTP/1.1\nHOST: ";
          networkState = SERVER_SEND;
          as.beginPacketTCP();
        }
-       else if (as.error())
+       else if (as.isClosed())
        {
          Serial.println("Connect failed");
+    //     as.disconnectTCP();
+         as.close();
          networkState = NET_IDLE;
        }
        break;
        
     case SERVER_SEND:
       
-      
-      as.write((uint8*)net_header,strlen(net_header));  //write header
+      as.write("GET /kegger/?D=");  //write header
+      tempByte = NETWORK_VERSION;
+      as.write_encode((uint8*)&tempByte,1);  //write out network protocol version
+      as.write_encode((uint8*)&currTemp,2);     //write temperature
+      as.write_encode((uint8*)&scale_volts,2);   //write weight 
+      as.write_encode((uint8*)&persist,sizeof(persist) - sizeof(persist.server));
+      as.write(" HTTP/1.0\nHOST: ");  //write header
       as.write((uint8*)persist.server,strlen(persist.server));  //write server hostname
-    
-      tempByte = (sizeof(persist) - sizeof(persist.server)) + 5;   //Version # , temp & weight
-      sprintf(net_header,"\nContent Length: %d\n\n",tempByte);  //Write Content Length
-      as.write((uint8*)net_header,strlen(net_header));
-
-      as.write((uint8*)"BINDATA=",8);
-      net_header[0] = KEGGER_VERSION;
-      as.write((uint8*)net_header,1);
-      as.write((uint8*)&persist,sizeof(persist)-sizeof(persist.server));   //Write  all settings
-      as.write((uint8*)&currTemp,2);     //write temperature
-      as.write((uint8*)&scale_volts,2);   //write weight
+      as.write("\n\n");
       as.send();
       
-      networkState = SERVER_RECEIVE;
+      networkState = SERVER_SEND_COMPLETE;
       break;
-
-      case SERVER_RECEIVE:  
-       if(as.isSendCompleteTCP())
-       {
-         as.close();
-         networkState = NET_IDLE;
-       }
+      
+      case SERVER_SEND_COMPLETE:
+        if(as.isSendCompleteTCP())
+        {
+          networkState = SERVER_RECEIVE;
+        }
+      break;
+      
+      case SERVER_RECEIVE:
+        if(as.isConnectedTCP())
+        {
+           if(as.available()){
+             as.read(&tempByte,1);
+             Serial.print(tempByte,BYTE);
+           }
+        }
+        else {
+          as.disconnectTCP();
+          as.close();
+          networkState = NET_IDLE;
+        }
        break;  
   
   };  //switch(networkState){ 
@@ -189,13 +201,15 @@ char net_header[] = "POST /kegger_web HTTP/1.1\nHOST: ";
   if(timer_status & 0x04 ) //every 1 s
   {
     timer_status &= ~0x04;
+
+#ifdef ETHERNET    
     
-    if(networkState == SERVER_CONNECTING)
+    if(networkState == SERVER_CONNECTING || networkState == SERVER_RECEIVE)
     {
       Serial.print("Sock Status: ");
       Serial.print(as.status(),DEC);
     }
- 
+#endif 
     
     tempByte = ! digitalRead(LED_STATUS2_PIN);
     
@@ -275,15 +289,17 @@ char net_header[] = "POST /kegger_web HTTP/1.1\nHOST: ";
     if(currTemp.hi <= persist.kegTemp-3)
       compPower = false;
   }
-  digitalWrite(COMPRESSOR_PIN,compPower);
+  digitalWrite(COMPRESSOR_PIN,!compPower);
 
   
     
   showMenu(currState);
   
 #ifdef ETHERNET
-  if(ipAquired && networkState == NET_IDLE)
+  if(networkState == NET_IDLE)
+  {
      networkState = DNS_RESOLVE;
+  }
 #endif
   
   
