@@ -29,10 +29,11 @@ class ASocket{
 		void close(); // Close socket, release back into pool
 		void send();  // Send Packet
 		uint8 status();   //0 - success, 1-timeout, 2 - still processing
-		void endRecv();
 		uint16 write(uint8 * buf, uint16 len); // write data into send buffer
+		uint16 write(char * buf); // write data into send buffer
+		void write_encode(uint8 * buf, uint16 len); // write data into send buffer		
 		void read(uint8 * buf, uint16 len);  // read data into read buffer
-		uint8 error(){return 0;};
+		uint8 isClosed(){return status() == SOCK_CLOSED;};
 		uint16 available();
 		
 		
@@ -42,7 +43,6 @@ class ASocket{
 		void disconnectTCP(); // disconnect the connection
 		uint8 isConnectedTCP();  // find out if we are done connecting.
 		void beginPacketTCP(); // New TCP Packet
-		void beginRecvTCP();
 		uint8 listenTCP();	// Establish TCP connection (Passive connection)
 		uint8 isSendCompleteTCP();
 		

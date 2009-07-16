@@ -81,7 +81,7 @@ uint8 ASocket::init(uint8 protocol, uint16 port, uint8 flag )
 	Serial.print("_sock=");
 	Serial.println(_sock,DEC);
 	
-	return socket(_sock, protocol, 53, 0);		
+	return socket(_sock, protocol, port, 0);		
 }
 	
 void ASocket::close() // Close socket, release back into pool
@@ -93,8 +93,8 @@ void ASocket::close() // Close socket, release back into pool
 
 void ASocket::send() // Send Packet
 {
-	Serial.print("send ptr=");
-	Serial.println(_write_ptr,DEC);
+//	Serial.print("send ptr=");
+//	Serial.println(_write_ptr,DEC);
 	
 	
 	//Write out pointer to W5100
@@ -133,7 +133,7 @@ uint8 ASocket::isSendCompleteTCP()
 	if ( (IINCHIP_READ(Sn_IR(_sock)) & Sn_IR_SEND_OK) != Sn_IR_SEND_OK ) 
 	{
 		/* m2008.01 [bj] : reduce code */
-		if ( IINCHIP_READ(Sn_SR(_sock)) == SOCK_CLOSED )
+		if ( status() == SOCK_CLOSED )
 		{
 			close();
 			return 1;  //send finsihed but bad
@@ -146,16 +146,26 @@ uint8 ASocket::isSendCompleteTCP()
 
 }
 
-
-
+void ASocket::write_encode(uint8 * buf_in, uint16 len) // write data into send buffer
+{
+	uint8 buf_out[2];
+	
+	for(word i=0; i<len;i++)
+	{
+		buf_out[0] = ((buf_in[i] & 0xf0) >> 4) + '0';
+		if(buf_out[0] > '9') buf_out[0]+=7;
+    	buf_out[1] = (buf_in[i] & 0x0f) + '0';
+		if(buf_out[1] > '9') buf_out[1]+=7;
+		write((uint8*)&buf_out,2);
+	}
+}
 
 // write data into send buffer
 uint16 ASocket::write(uint8 * buf, uint16 len)
 {
-	//uint8 status=0;
-	//uint16 ret=0;
-	//uint16 freesize=0;
-/*
+	uint8 s=0;
+	uint16 freesize=0;
+
 	if (len > getIINCHIP_TxMAX(_sock)) {
 		len = getIINCHIP_TxMAX(_sock); // check size not to exceed MAX size.
    	}
@@ -164,34 +174,25 @@ uint16 ASocket::write(uint8 * buf, uint16 len)
 	do 
 	{
 		freesize = getSn_TX_FSR(_sock);
-		status = IINCHIP_READ(Sn_SR(_sock));
-		if ((status != SOCK_ESTABLISHED) && (status != SOCK_CLOSE_WAIT) && (status != SOCK_UDP))
+		s = status();
+		if ((s != SOCK_ESTABLISHED) && (s != SOCK_CLOSE_WAIT) && (s != SOCK_UDP))
 		{
-			ret = 0; 
-			break;
+			return 0;
 		}
-	} while (freesize < ret);  */
-	Serial.print("Write: ptr: ");
-	Serial.print(_write_ptr,DEC);
-	Serial.print(" len: ");
-	Serial.println(len,DEC);
+	} while (freesize < len);  
+//	Serial.print("Write: ptr: ");
+//	Serial.print(_write_ptr,DEC);
+//	Serial.print(" len: ");
+//	Serial.println(len,DEC);
 	write_data(_sock, (uint8 *) buf, (uint8 *)_write_ptr, len);
 	_write_ptr +=len;
 	
 	return len;
 } 
 
-void ASocket::endRecv()
+uint16 ASocket::write(char * buf)
 {
-	IINCHIP_WRITE(Sn_RX_RD0(_sock),(uint8)((_read_ptr & 0xff00) >> 8));
-    IINCHIP_WRITE((Sn_RX_RD0(_sock) + 1),(uint8)(_read_ptr & 0x00ff));
-	
-	IINCHIP_WRITE(Sn_CR(_sock),Sn_CR_RECV);
-
-	/* +20071122[chungs]:wait to process the command... */
-	while( IINCHIP_READ(Sn_CR(_sock)) ) 
-		;
-	/* ------- */
+	return write((uint8*)buf,strlen(buf));
 }
 
 // read data into read buffer
@@ -199,6 +200,10 @@ void ASocket::read(uint8 * buf, uint16 len)
 {
 	if ( len > 0 )
 	{
+		_read_ptr = IINCHIP_READ(Sn_RX_RD0(_sock));
+    	_read_ptr = ((_read_ptr & 0x00ff) << 8) + IINCHIP_READ(Sn_RX_RD0(_sock) + 1);
+
+
 		read_data(_sock,(uint8 *) _read_ptr,buf, len);
 		_read_ptr+=len;
 
@@ -211,22 +216,33 @@ void ASocket::read(uint8 * buf, uint16 len)
 				Serial.println(" ");
 		}
 */		
+
+		IINCHIP_WRITE(Sn_RX_RD0(_sock),(uint8)((_read_ptr & 0xff00) >> 8));
+		IINCHIP_WRITE((Sn_RX_RD0(_sock) + 1),(uint8)(_read_ptr & 0x00ff));
 		
+		IINCHIP_WRITE(Sn_CR(_sock),Sn_CR_RECV);
+
+		/* +20071122[chungs]:wait to process the command... */
+		while( IINCHIP_READ(Sn_CR(_sock)) ) 
+			;
+		/* ------- */
 
 	}
 }
 
 uint16 ASocket::available() {
-  uint16 val = IINCHIP_READ(Sn_RX_RSR0(_sock));
-  val = (val << 8) + IINCHIP_READ(Sn_RX_RSR0(_sock) + 1);
+  
+  if(status() == SOCK_CLOSED){
+	  return 0;
+  }
+    
+  return getSn_RX_RSR(_sock);
 
 //DEBUG
-  if(val > 0) {
+/*  if(val > 0) {
 	  Serial.print("Avail=");
 	  Serial.print(val,DEC);
-  }
-  
-  return val;
+  } */
 }
 
 uint8 ASocket::status() {
@@ -254,7 +270,7 @@ void ASocket::connectTCP(uint8 * addr, uint16 port)
 uint8 ASocket::isConnectedTCP()
 {
   uint8_t s = status();
-  return s == SOCK_ESTABLISHED;
+  return (s == SOCK_ESTABLISHED || (s == SOCK_CLOSE_WAIT && available()));
 
 }
 
@@ -277,17 +293,12 @@ void ASocket::beginPacketTCP()
 	_write_ptr = IINCHIP_READ(Sn_TX_WR0(_sock));
     _write_ptr = ((_write_ptr & 0x00ff) << 8) + IINCHIP_READ(Sn_TX_WR0(_sock) + 1);
 	
-	Serial.print("Begin TCP ptr=");
-	Serial.println(_write_ptr,DEC);
+//	Serial.print("Begin TCP ptr=");
+//	Serial.println(_write_ptr,DEC);
 
 }
 
-void ASocket::beginRecvTCP()
-{
-	_read_ptr = IINCHIP_READ(Sn_RX_RD0(_sock));
-    _read_ptr = ((_read_ptr & 0x00ff) << 8) + IINCHIP_READ(Sn_RX_RD0(_sock) + 1);
-	
-}
+
 
 // Establish TCP connection (Passive connection)
 uint8 ASocket::listenTCP()
@@ -315,8 +326,7 @@ uint16 ASocket::beginRecvUDP(uint8 * addr, uint16  *port)
 	
 	while(available() < 0x08);
 	
-	beginRecvTCP();  //Read in _read_ptr
-    read(head, 0x08);  //read in UDP header
+	read(head, 0x08);  //read in UDP header
 	
 	// read peer's IP address, port number.
 	addr[0] = head[0];
@@ -342,7 +352,8 @@ void ASocket::beginPacketUDP(uint8 * addr, uint16 port)
 	IINCHIP_WRITE((Sn_DIPR0(_sock) + 3),addr[3]);
 	IINCHIP_WRITE(Sn_DPORT0(_sock),(uint8)((port & 0xff00) >> 8));
 	IINCHIP_WRITE((Sn_DPORT0(_sock) + 1),(uint8)(port & 0x00ff));
-	
+
+/*
 	Serial.print("begin udp addr: ");
 	Serial.print(addr[0],DEC);
 	Serial.print(".");
@@ -352,7 +363,7 @@ void ASocket::beginPacketUDP(uint8 * addr, uint16 port)
 	Serial.print(".");
 	Serial.print(addr[3],DEC);
 	Serial.print(".  port= ");
-	Serial.println(port,DEC);
+	Serial.println(port,DEC);  */
 	
 	beginPacketTCP();  //everything else from here is the same as TCP
 }

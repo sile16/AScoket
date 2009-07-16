@@ -8,6 +8,8 @@ extern "C" {
   #include "utility/types.h"
 }
 
+#include "ASocket.h"
+
 /* DHCP state machine. */
 #define STATE_DHCP_START 0
 #define	STATE_DHCP_DISCOVER	1
@@ -140,6 +142,7 @@ private:
   uint8_t _dhcpGatewayIp[4];
   uint8_t _dhcpDhcpServerIp[4];
   uint8_t _dhcpDnsServerIp[4];
+  ASocket _as;
   
   void presend_DHCP();
   void send_DHCP_MESSAGE(uint8, uint16);
