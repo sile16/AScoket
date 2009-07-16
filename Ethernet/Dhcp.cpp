@@ -8,11 +8,13 @@ extern "C" {
   #include "socket.h"
   #include "spi.h"
 }
-
+#include "WProgram.h"
 #include <string.h>
 #include <stdlib.h>
 #include "Dhcp.h"
 #include "wiring.h"
+#include "ASocket.h"
+
 
 int DhcpClass::beginWithDHCP(uint8_t *mac, u_long timeout, u_long responseTimeout)
 {
@@ -29,12 +31,14 @@ int DhcpClass::beginWithDHCP(uint8_t *mac, u_long timeout, u_long responseTimeou
     setSIPR(_dhcpLocalIp);
     
     sysinit(0x55, 0x55);
-    if(socket(0, Sn_MR_UDP, DHCP_CLIENT_PORT, 0) <= 0)
+    if(!_as.initUDP(DHCP_CLIENT_PORT))
     {
       return -1;
     }
     
-    presend_DHCP();
+//    presend_DHCP();
+    
+    
     
     int result = 0;
     
@@ -80,8 +84,8 @@ int DhcpClass::beginWithDHCP(uint8_t *mac, u_long timeout, u_long responseTimeou
             break;
     }
     
-    close(0);
     _dhcpTransactionId++;
+	_as.close();
     
     if(result == 1)
     {
@@ -93,25 +97,12 @@ int DhcpClass::beginWithDHCP(uint8_t *mac, u_long timeout, u_long responseTimeou
     return result;
 }
 
-void DhcpClass::presend_DHCP()
-{
-    uint16 port = DHCP_SERVER_PORT;
-
-    IINCHIP_WRITE(Sn_DIPR0(0), 255);
-    IINCHIP_WRITE((Sn_DIPR0(0) + 1), 255);
-    IINCHIP_WRITE((Sn_DIPR0(0) + 2), 255);
-    IINCHIP_WRITE((Sn_DIPR0(0) + 3), 255);
-
-    IINCHIP_WRITE(Sn_DPORT0(0), (uint8)((port & 0xff00) >> 8));
-    IINCHIP_WRITE((Sn_DPORT0(0) + 1), (uint8)(port & 0x00ff));  
-}
 
 void DhcpClass::send_DHCP_MESSAGE(uint8 messageType, uint16 secondsElapsed)
 {
-    uint16 ptr = 0;
-
-    ptr = IINCHIP_READ(Sn_TX_WR0(0));
-    ptr = ((ptr & 0x00ff) << 8) + IINCHIP_READ(Sn_TX_WR0(0) + 1);
+    uint8 dhcp_server[] = {255,255,255,255};
+	
+	_as.beginPacketUDP(dhcp_server,DHCP_SERVER_PORT);
 
     uint8 *buffer = (uint8*) malloc(32);
     memset(buffer, 0, 32);
@@ -139,14 +130,12 @@ void DhcpClass::send_DHCP_MESSAGE(uint8 messageType, uint16 secondsElapsed)
     // giaddr: already zeroed
 
     //put data in W5100 transmit buffer
-    write_data(0, buffer, (uint8 *)ptr, 28);
-    ptr += 28;
+    _as.write(buffer, 28);
 
     memcpy(buffer, _dhcpMacAddr, 6); // chaddr
 
     //put data in W5100 transmit buffer
-    write_data(0, buffer, (uint8 *)ptr, 16);
-    ptr += 16;
+    _as.write(buffer,16);
 
     memset(buffer, 0, 32); // clear local buffer
 
@@ -154,8 +143,7 @@ void DhcpClass::send_DHCP_MESSAGE(uint8 messageType, uint16 secondsElapsed)
     // put in W5100 transmit buffer x 6 (192 bytes)
   
     for(int i = 0; i < 6; i++) {
-        write_data(0, buffer, (uint8 *)ptr, 32);
-        ptr += 32;
+        _as.write(buffer, 32);
     }
   
     // OPT - Magic Cookie
@@ -185,8 +173,7 @@ void DhcpClass::send_DHCP_MESSAGE(uint8 messageType, uint16 secondsElapsed)
     buffer[26] = _dhcpMacAddr[5];
 
     //put data in W5100 transmit buffer
-    write_data(0, buffer, (uint8 *)ptr, 27);
-    ptr += 27;
+    _as.write(buffer, 27);
 
     if(messageType == DHCP_REQUEST)
     {
@@ -205,8 +192,7 @@ void DhcpClass::send_DHCP_MESSAGE(uint8 messageType, uint16 secondsElapsed)
         buffer[11] = _dhcpDhcpServerIp[3];
 
         //put data in W5100 transmit buffer
-        write_data(0, buffer, (uint8 *)ptr, 12);
-        ptr += 12;
+        _as.write(buffer, 12);
     }
     
     buffer[0] = dhcpParamRequest;
@@ -220,62 +206,47 @@ void DhcpClass::send_DHCP_MESSAGE(uint8 messageType, uint16 secondsElapsed)
     buffer[8] = endOption;
     
     //put data in W5100 transmit buffer
-    write_data(0, buffer, (uint8 *)ptr, 9);
-    ptr += 9;
+    _as.write(buffer,9);
 
     if(buffer)
         free(buffer);
 
-    IINCHIP_WRITE(Sn_TX_WR0(0),(uint8)((ptr & 0xff00) >> 8));
-    IINCHIP_WRITE((Sn_TX_WR0(0) + 1),(uint8)(ptr & 0x00ff));
-
-    IINCHIP_WRITE(Sn_CR(0), Sn_CR_SEND);
-
-    while( IINCHIP_READ(Sn_CR(0)) ) ;
+   _as.send();
+   
+   while(!_as.isSendCompleteUDP());
 }
 
 u_char DhcpClass::parseDHCPResponse(u_long responseTimeout)
 {
-    uint16 ptr = 0;
      uint16 data_len = 0;
      uint16 port = 0;
      u_char type = 0;
      u_char svr_addr[4];
      u_char opt_len = 0;
+	 uint8 junk;
      
     uint8* buffer = 0;
 
     u_long startTime = millis();
 
-    while((IINCHIP_READ(Sn_RX_RSR0(0)) == 0x0000) && (IINCHIP_READ(Sn_RX_RSR0(0) + 1) == 0x0000))
+    while(_as.available() < 8)
     {
         if((millis() - startTime) > responseTimeout)
             return 255;
     }
+	Serial.print("Parsing DHCP message");
   
-    ptr = IINCHIP_READ(Sn_RX_RD0(0));
-    ptr = ((ptr & 0x00ff) << 8) + IINCHIP_READ(Sn_RX_RD0(0) + 1);
-
+ 
     // read UDP header
-    buffer = (uint8*)malloc(8);
-    read_data(0, (uint8 *)ptr, (uint8*)buffer, 0x08);
-    ptr += 8;
-
-    svr_addr[0] = buffer[0];
-    svr_addr[1] = buffer[1];
-    svr_addr[2] = buffer[2];
-    svr_addr[3] = buffer[3];
-    port = buffer[4];
-    port = (port << 8) + buffer[5];
-    data_len = buffer[6];
-    data_len = (data_len << 8) + buffer[7];
-
-    free(buffer);
-
+    data_len = _as.beginRecvUDP((uint8*)svr_addr, &port);
+	Serial.print("data=");
+	Serial.println(data_len,DEC);
+   
     buffer = (uint8*) malloc(sizeof(RIP_MSG_FIXED));
     RIP_MSG_FIXED * pRMF = (RIP_MSG_FIXED*) buffer;
 
-    read_data(0, (uint8 *)ptr, (uint8*)buffer, sizeof(RIP_MSG_FIXED));
+    _as.read((uint8*)buffer, sizeof(RIP_MSG_FIXED));
+	Serial.print("RIP_MSG Read");
   
     if(pRMF->op == DHCP_BOOTREPLY && port == DHCP_SERVER_PORT)
     {
@@ -283,14 +254,23 @@ u_char DhcpClass::parseDHCPResponse(u_long responseTimeout)
         {
             return 0;
         }
+		Serial.println("Trans ID OK");
 
         memcpy(_dhcpLocalIp, pRMF->yiaddr, 4);
-        free(buffer);
+        
+		//dump 240 bytes of data to get to option
+		for(junk=0;junk< (240-sizeof(RIP_MSG_FIXED));junk++)
+		{
+			_as.read(buffer,1);
+		}
+		Serial.println("240 dump ok");
+		free(buffer);
 
         uint16 optionLen = data_len - 240;
         buffer = (uint8*) malloc(optionLen);
-        read_data(0, (uint8 *)ptr + 240, (uint8*)buffer, optionLen);
-
+		
+        _as.read((uint8*)buffer, optionLen);
+		Serial.println("option len OK");
 
         uint8* p = buffer;
         uint8* e = p + optionLen;
@@ -308,6 +288,7 @@ u_char DhcpClass::parseDHCPResponse(u_long responseTimeout)
                 case dhcpMessageType :
                     opt_len = *p++;
                     type = *p;
+					Serial.print("Found Type");
                     break;
                     
                 case subnetMask :
@@ -345,19 +326,14 @@ u_char DhcpClass::parseDHCPResponse(u_long responseTimeout)
           
             p += opt_len;
         }
+		
 
         free(buffer);
     }
-
-    ptr += data_len;
-
-    IINCHIP_WRITE(Sn_RX_RD0(0),(uint8)((ptr & 0xff00) >> 8));
-    IINCHIP_WRITE((Sn_RX_RD0(0) + 1),(uint8)(ptr & 0x00ff));
-
-    IINCHIP_WRITE(Sn_CR(0),Sn_CR_RECV);
-
-    while( IINCHIP_READ(Sn_CR(0)) );
-
+    while(_as.available())
+	{
+		_as.read((uint8*)&junk,1);
+	}	
     return type;
 }
 

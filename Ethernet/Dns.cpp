@@ -36,18 +36,18 @@ uint8_t DnsClass::resolve()
 					
 	uint8_t domain_len=0; //keeps track of the '.' chars in the string.
 	
-	Serial.print("Socket init");
+//	Serial.print("Socket init");
 	if( ! _as.initUDP(0))               //set for UDP, allocate socket, no flags
 	{	
-		Serial.print("Error");
+		Serial.print("Error1");
 		return 0;
 	}
 		 
-	Serial.println("UDP Packet Begin");
+//	Serial.println("UDP Packet Begin");
 	_as.beginPacketUDP(_dns_server,53);  //Start a new UDP Packet for destination port 53
-	Serial.println("DNS Header");
+//	Serial.println("DNS Header");
 	_as.write(dns_header,sizeof(dns_header));  //write header into TX Buffer on W5100
-    Serial.println("Question");
+//    Serial.println("Question");
 	    
 	//Question
 	for(uint8_t x=1;x<=strlen(_domain);x++) { //replace each "." with a length field
@@ -60,9 +60,9 @@ uint8_t DnsClass::resolve()
 		}
 	}
 	//add the trailing null char of the name into the line below
-	Serial.println("footer");
+//	Serial.println("footer");
 	_as.write(question_footer, sizeof(question_footer)); //Write DNS footer
-	Serial.println("Send");
+//	Serial.println("Send");
 	_as.send();  //actually send the UDP packet
 	
 	while(!_as.isSendCompleteUDP());  //wait for udp packet to finish sending
@@ -79,9 +79,9 @@ uint8_t DnsClass::finished()
 	uint16_t message_len;
 
 	
-	if( _as.available() > 0 )	{   //Have we received data yet?
+	if( _as.available() > 8 )	{   //Have we received data yet?
 		//Read in header
-		Serial.print("Read Header");
+//		Serial.print("Read Header");
 		message_len = _as.beginRecvUDP(incoming_ip,&incoming_port);
 		
 		while(_as.available() < 12);
@@ -103,7 +103,7 @@ uint8_t DnsClass::finished()
 		//Dump DNS Question, should only be only 1
 		dumpName();
 		dump(4);  //dump
-	    Serial.print("Answers....");
+//	    Serial.print("Answers....");
 		//Go through answers
 		for(;answer_count>0;answer_count--) {
 			dumpName();
@@ -119,7 +119,6 @@ uint8_t DnsClass::finished()
 		}
 		
 		//No A Records founds error
-		_as.endRecv();
 		_as.close();
 		return 2;  //FAILED
 		
