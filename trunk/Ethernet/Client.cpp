@@ -1,17 +1,14 @@
-extern "C" {
-  #include "types.h"
-  #include "w5100.h"
-  #include "socket.h"
-}
-
 #include "Ethernet.h"
 #include "Client.h"
 #include "Server.h"
 
-uint16_t Client::_srcport = 0;
+extern "C" {
+	#include "utility/types.h"
+	#include "utility/w5100.h"
+}
 
 Client::Client(uint8_t sock) {
-  _sock = sock;
+  _as.init(sock);
 }
 
 Client::Client(uint8_t *ip, uint16_t port) {
@@ -20,26 +17,15 @@ Client::Client(uint8_t *ip, uint16_t port) {
 }
 
 uint8_t Client::connect() {
-  _sock = 255;
   
-  for (int i = 0; i < MAX_SOCK_NUM; i++) {
-    if (getSn_SR(i) == SOCK_CLOSED) {
-      _sock = i;
-    }
+  if(!_as.initTCP(0)) {    //0 means select source port automatically
+  		return 0;
   }
-  
-  if (_sock == 255)
-    return 0;
     
-  _srcport++;
+  _as.connectTCP(_ip,_port);
     
-  socket(_sock, Sn_MR_TCP, 1024 + _srcport, 0);
-  
-  if (!::connect(_sock, _ip, _port))
-    return 0;
-    
-  while (status() != SOCK_ESTABLISHED) {
-    if (status() == SOCK_CLOSED)
+  while (!_as.isConnectedTCP()) {
+    if (_as.isClosed())
       return 0;
   }
   
@@ -47,39 +33,48 @@ uint8_t Client::connect() {
 }
 
 void Client::write(uint8_t b) {
-  send(_sock, &b, 1);
+  _as.beginPacketTCP();
+  _as.write(&b, 1);
+  _as.send();
 }
 
 int Client::available() {
-  return getSn_RX_RSR(_sock);
+  return _as.available();
 }
 
 int Client::read() {
   uint8_t b;
   if (!available())
-    return -1;
-  recv(_sock, &b, 1);
+    return -1;  
+  _as.read(&b, 1);
   return b;
 }
 
 void Client::flush() {
-  while (available())
-    read();
+  _as.readSkip(_as.available());
+    
 }
 
 void Client::stop() {
-  close(_sock);
-  disconnect(_sock);
-  EthernetClass::_server_port[_sock] = 0;
+
+  SOCKET temp_socket = _as.getSocket();
+  if( temp_socket < MAX_SOCK_NUM)
+  { 
+ 	 EthernetClass::_server_port[temp_socket] = 0;
+  }
+  
+  _as.disconnectTCP();
+  _as.close();
 }
 
 uint8_t Client::connected() {
-  uint8_t s = status();
-  return !(s == SOCK_LISTEN || s == SOCK_CLOSED || (s == SOCK_CLOSE_WAIT && !available()));
+  //uint8_t s = status();
+  //return !(s == SOCK_LISTEN || s == SOCK_CLOSED || (s == SOCK_CLOSE_WAIT && !available()));
+  return _as.isConnectedTCP();
 }
 
 uint8_t Client::status() {
-  return getSn_SR(_sock);
+  return _as.status();
 }
 
 // the next three functions are a hack so we can compare the client returned
@@ -88,13 +83,13 @@ uint8_t Client::status() {
 // library.
 
 uint8_t Client::operator==(int p) {
-  return _sock == 255;
+  return _as.isClosed();
 }
 
 uint8_t Client::operator!=(int p) {
-  return _sock != 255;
+  return !_as.isClosed();
 }
 
 Client::operator bool() {
-  return _sock != 255;
+  return !_as.isClosed();
 }

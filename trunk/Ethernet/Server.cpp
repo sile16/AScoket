@@ -1,12 +1,12 @@
-extern "C" {
-  #include "types.h"
-  #include "w5100.h"
-  #include "socket.h"
-}
-
 #include "Ethernet.h"
 #include "Client.h"
 #include "Server.h"
+
+
+extern "C" {
+	#include "utility/types.h"
+	#include "utility/w5100.h"
+}
 
 Server::Server(uint16_t port)
 {
@@ -15,7 +15,7 @@ Server::Server(uint16_t port)
 
 void Server::begin()
 {
-  for (int sock = 0; sock < MAX_SOCK_NUM; sock++) {
+/*  for (int sock = 0; sock < MAX_SOCK_NUM; sock++) {
     Client client(sock);
     if (client.status() == SOCK_CLOSED) {
       socket(sock, Sn_MR_TCP, _port, 0);
@@ -23,21 +23,29 @@ void Server::begin()
       EthernetClass::_server_port[sock] = _port;
       break;
     }
-  }  
+  } */
+  
+  if(_as.initTCP(_port))
+  {
+  	_as.listenTCP();
+	EthernetClass::_server_port[_as.getSocket()] = _port;
+  }
 }
 
 void Server::accept()
 {
-  int listening = 0;
+  uint8 listening = 0;
   
-  for (int sock = 0; sock < MAX_SOCK_NUM; sock++) {
-    Client client(sock);
+  for (SOCKET sock = 0; sock < MAX_SOCK_NUM; sock++) {
+    _as.init(sock);
     
     if (EthernetClass::_server_port[sock] == _port) {
-      if (client.status() == SOCK_LISTEN) {
+      if (_as.status() == SOCK_LISTEN) {
         listening = 1;
-      } else if (client.status() == SOCK_CLOSE_WAIT && !client.available()) {
-        client.stop();
+      } else if (!_as.isConnectedTCP()) {
+	//	_as.disconnectTCP();
+        _as.close();
+		EthernetClass::_server_port[sock] = 0;
       }
     } 
   }
@@ -53,8 +61,7 @@ Client Server::available()
   
   for (int sock = 0; sock < MAX_SOCK_NUM; sock++) {
     Client client(sock);
-    if (EthernetClass::_server_port[sock] == _port &&
-        client.status() == SOCK_ESTABLISHED) {
+    if (EthernetClass::_server_port[sock] == _port && client) { //  client.status() == SOCK_ESTABLISHED) {
       if (client.available()) {
         // XXX: don't always pick the lowest numbered socket.
         return client;

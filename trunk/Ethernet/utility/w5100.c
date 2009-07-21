@@ -34,7 +34,7 @@
 // #include <avr/io.h> 
    
 #include "types.h"
-#include "socket.h"
+//#include "socket.h"
 #include "w5100.h"
 
 
