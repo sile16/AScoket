@@ -6,7 +6,7 @@ extern "C" {
 #include "Ethernet.h"
 
 // XXX: don't make assumptions about the value of MAX_SOCK_NUM.
-uint8_t EthernetClass::_state[MAX_SOCK_NUM] = { 0, 0, 0, 0 };
+//uint8_t EthernetClass::_state[MAX_SOCK_NUM] = { 0, 0, 0, 0 };
 uint16_t EthernetClass::_server_port[MAX_SOCK_NUM] = { 0, 0, 0, 0 };
 
 void EthernetClass::begin(uint8_t *mac, uint8_t *ip)

@@ -6,6 +6,15 @@
 
 #include "ASocket.h"
 
+#ifdef DEBUG
+//#define DEBUG_DNS
+#endif
+
+#ifdef DEBUG_DNS
+ #define D_DNS(msg)  
+#else
+ #define D_DNS(msg)  msg
+#endif
 
 #define DNS_IDLE         0
 #define DNS_HEADER       1
@@ -15,6 +24,9 @@
 #define DNS_RR_ANSWER    5
 #define DNS_RR_SKIP      6
 #define DNS_SIZE		 7
+
+//5 second time out value
+#define DNS_TIMEOUT      5000
 
 
 
@@ -30,6 +42,7 @@ private:
   uint8_t _answer[4];
   uint16_t _ttl;
   uint16_t _age;
+  u_long _startTime;
   void dump(uint8_t count);
   void dumpName();
 

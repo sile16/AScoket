@@ -1,4 +1,4 @@
-// DNS Library v0.1
+// DNS Library v0.2
 // Author: Matt Robertson
 
 #include <string.h>
@@ -17,7 +17,6 @@ void DnsClass::init(char *domain, uint8_t *dns_server)
 {
 	_domain = domain;   
 	memcpy(_dns_server,dns_server,4);
-	
 }
 
 uint8_t DnsClass::resolve()
@@ -67,10 +66,14 @@ uint8_t DnsClass::resolve()
 	
 	while(!_as.isSendCompleteUDP());  //wait for udp packet to finish sending
 	
+	_startTime = millis();
 	return 1; //  success	
 	
 }
 
+/* Returns 0 if it's still processing
+ * Returns 1 if it succesfully resolved
+ * Returns > 1 if an error occured */
 uint8_t DnsClass::finished()
 {
 	int8_t answer_count;
@@ -79,12 +82,10 @@ uint8_t DnsClass::finished()
 	uint16_t message_len;
 
 	
-	if( _as.available() > 8 )	{   //Have we received data yet?
+	if( _as.available() > 19 )	{   //Have we received data yet?  20 is the UDP header plus the DNS header
 		//Read in header
 //		Serial.print("Read Header");
 		message_len = _as.beginRecvUDP(incoming_ip,&incoming_port);
-		
-		while(_as.available() < 12);
 		
 		_as.read(buf, 12);  //pull 12 bytes, size of the DNS header
 		
@@ -98,11 +99,11 @@ uint8_t DnsClass::finished()
 		}
 		
 		//Answer Count
-		answer_count = buf[7];  //if there are more than 128 answers we are screwed
+		answer_count = buf[7];  //if there are more than 128 answers we are screwed becuase we are 8bit signed
 			
 		//Dump DNS Question, should only be only 1
 		dumpName();
-		dump(4);  //dump
+		_as.readSkip(4);  //dump
 //	    Serial.print("Answers....");
 		//Go through answers
 		for(;answer_count>0;answer_count--) {
@@ -115,7 +116,7 @@ uint8_t DnsClass::finished()
 				_as.close();
 				return 1;  //Success!
 			}
-			dump(buf[9]);  //dump the RDATA
+			_as.readSkip(buf[9]);  //dump the RDATA
 		}
 		
 		//No A Records founds error
@@ -123,20 +124,16 @@ uint8_t DnsClass::finished()
 		return 2;  //FAILED
 		
 	} //if( getSn_RX_RSR(_sock) > 0 )
+	else if(millis() - _startTime > DNS_TIMEOUT) {
+		_as.close();
+		return 3;  //Timeout
+	}
 	return 0; //We are not finished yet so return 0;
 }
   
 void DnsClass::getIP(uint8_t *ip)
 {
   memcpy((void*)ip,(void*)_answer,4);
-}
-
-void DnsClass::dump(uint8_t count)
-{
-	uint8_t buf;
-	
-	for(uint8_t x=0;x<count;x++)
-		_as.read(&buf, 1);
 }
 
 void DnsClass::dumpName()
@@ -149,11 +146,9 @@ void DnsClass::dumpName()
 			return;
 		}
 		if((junk & 0xc0) == 0xc0) {  //pointer found
-			dump(1);
+			_as.readSkip(1);
 			return;
 		}
-		dump(junk);
+		_as.readSkip(junk);
 	}
-
-
 }

@@ -1,11 +1,11 @@
 // DHCP Library v0.3 - April 25, 2009
 // Author: Jordan Terrell - blog.jordanterrell.com
+//   Modified to use the ASocket Library by Matt Robertson
 
 extern "C" {
   #include "types.h"
   #include "w5100.h"
   #include "sockutil.h"
-  #include "socket.h"
   #include "spi.h"
 }
 #include "WProgram.h"
@@ -234,19 +234,19 @@ u_char DhcpClass::parseDHCPResponse(u_long responseTimeout)
         if((millis() - startTime) > responseTimeout)
             return 255;
     }
-	Serial.print("Parsing DHCP message");
+//	Serial.print("Parsing DHCP message");
   
  
     // read UDP header
     data_len = _as.beginRecvUDP((uint8*)svr_addr, &port);
-	Serial.print("data=");
-	Serial.println(data_len,DEC);
+//	Serial.print("data=");
+//	Serial.println(data_len,DEC);
    
     buffer = (uint8*) malloc(sizeof(RIP_MSG_FIXED));
     RIP_MSG_FIXED * pRMF = (RIP_MSG_FIXED*) buffer;
 
     _as.read((uint8*)buffer, sizeof(RIP_MSG_FIXED));
-	Serial.print("RIP_MSG Read");
+//	Serial.print("RIP_MSG Read");
   
     if(pRMF->op == DHCP_BOOTREPLY && port == DHCP_SERVER_PORT)
     {
@@ -254,23 +254,20 @@ u_char DhcpClass::parseDHCPResponse(u_long responseTimeout)
         {
             return 0;
         }
-		Serial.println("Trans ID OK");
+//		Serial.println("Trans ID OK");
 
         memcpy(_dhcpLocalIp, pRMF->yiaddr, 4);
         
-		//dump 240 bytes of data to get to option
-		for(junk=0;junk< (240-sizeof(RIP_MSG_FIXED));junk++)
-		{
-			_as.read(buffer,1);
-		}
-		Serial.println("240 dump ok");
+		//dump 240 bytes of data to get to option - the sizeof(RIP_MSG_FXIED)
+		_as.readSkip(240-sizeof(RIP_MSG_FIXED));
+//		Serial.println("240 dump ok");
 		free(buffer);
 
         uint16 optionLen = data_len - 240;
         buffer = (uint8*) malloc(optionLen);
 		
         _as.read((uint8*)buffer, optionLen);
-		Serial.println("option len OK");
+//		Serial.println("option len OK");
 
         uint8* p = buffer;
         uint8* e = p + optionLen;
