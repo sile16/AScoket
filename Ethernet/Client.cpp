@@ -2,6 +2,8 @@
 #include "Client.h"
 #include "Server.h"
 
+#include "string.h"
+
 extern "C" {
 	#include "utility/types.h"
 	#include "utility/w5100.h"
@@ -13,7 +15,7 @@ Client::Client(uint8_t sock) {
 
 Client::Client(uint8_t *ip, uint16_t port) {
   _ip = ip;
-  _port = port;  
+  _port = port;
 }
 
 uint8_t Client::connect() {
@@ -33,8 +35,16 @@ uint8_t Client::connect() {
 }
 
 void Client::write(uint8_t b) {
+    write((uint8_t *) &b, 1);
+}
+
+void Client::write(const char *str) {
+  write((uint8_t *)str,strlen(str));
+}
+
+void Client::write(const uint8_t *buf, size_t size) {
   _as.beginPacketTCP();
-  _as.write(&b, 1);
+  _as.write((uint8_t *)buf, size);
   _as.send();
 }
 
@@ -68,10 +78,11 @@ void Client::stop() {
 }
 
 uint8_t Client::connected() {
-  //uint8_t s = status();
-  //return !(s == SOCK_LISTEN || s == SOCK_CLOSED || (s == SOCK_CLOSE_WAIT && !available()));
-  return _as.isConnectedTCP();
+//  uint8_t s = status();
+//  return !(s == SOCK_LISTEN || s == SOCK_CLOSED || s == SOCK_FIN_WAIT || (s == SOCK_CLOSE_WAIT && !available()));
+	return _as.isConnectedTCP();
 }
+
 
 uint8_t Client::status() {
   return _as.status();

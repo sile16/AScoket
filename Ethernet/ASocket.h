@@ -8,9 +8,8 @@
 #ifndef	_ASocket_H_
 #define	_ASocket_H_
 
-#ifdef DEBUG
 //#define DEBUG_ASOCKET
-#endif
+
 
 #ifdef DEBUG_ASOCKET
  #define D_ASOCKET(msg)  msg
@@ -56,6 +55,7 @@ class ASocket{
 		void connectTCP(uint8 * addr, uint16 dstPort); // Establish TCP connection (Active connection)
 		void disconnectTCP(); // disconnect the connection
 		uint8 isConnectedTCP();  // find out if still connected.
+		uint8 isClosingTCP();  // find out if we are transitioning connection states.
 		void beginPacketTCP(); // New TCP Packet
 		uint8 listenTCP();	// Establish TCP listen connection (Passive connection)
 		uint8 isSendCompleteTCP();  //Query if the sending of the last packet was completed.  (returns true even if send timed out)

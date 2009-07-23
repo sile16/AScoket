@@ -1,6 +1,7 @@
 #include "Ethernet.h"
 #include "Client.h"
 #include "Server.h"
+#include "string.h"
 
 
 extern "C" {
@@ -42,7 +43,7 @@ void Server::accept()
     if (EthernetClass::_server_port[sock] == _port) {
       if (_as.status() == SOCK_LISTEN) {
         listening = 1;
-      } else if (!_as.isConnectedTCP()) {
+      } else if (_as.isClosingTCP()) {
 	//	_as.disconnectTCP();
         _as.close();
 		EthernetClass::_server_port[sock] = 0;
@@ -74,6 +75,16 @@ Client Server::available()
 
 void Server::write(uint8_t b) 
 {
+  write(&b, 1);
+}
+
+void Server::write(const char *str) 
+{
+  write((const uint8_t *)str, strlen(str));
+}
+
+void Server::write(const uint8_t *buffer, size_t size) 
+{
   accept();
   
   for (int sock = 0; sock < MAX_SOCK_NUM; sock++) {
@@ -81,7 +92,7 @@ void Server::write(uint8_t b)
     
     if (EthernetClass::_server_port[sock] == _port &&
         client.status() == SOCK_ESTABLISHED) {
-      client.write(b);
+      client.write(buffer, size);
     }
   }
 }
