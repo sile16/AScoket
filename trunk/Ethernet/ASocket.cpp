@@ -50,15 +50,20 @@ uint8 ASocket::init(uint8 protocol, uint16 srcPort, uint8 flag )
 
 	for(_sock = 0; _sock < MAX_SOCK_NUM ; _sock++){
 
-//		D_ASOCKET(Serial.print("Sock "));
-//		D_ASOCKET(Serial.print(i,DEC));
-//		D_ASOCKET(Serial.print(" Status: "));
-//		D_ASOCKET(Serial.println(getSn_SR(i),HEX));
+		D_ASOCKET(Serial.print("Sock "));
+		D_ASOCKET(Serial.print(_sock,DEC));
+		D_ASOCKET(Serial.print(" Status: "));
+		D_ASOCKET(Serial.println(getSn_SR(_sock),HEX));
 		
 		if( isClosed() ){  //isClosed uses _sock to determine status
 			break;
 		}
 	}
+
+	D_ASOCKET(Serial.print("selected: "));
+	D_ASOCKET(Serial.println(_sock,DEC));
+
+
 			
 	if(_sock == MAX_SOCK_NUM) {//no avail sockets found, error
 		D_ASOCKET(Serial.print("no sockets avail."));
@@ -100,6 +105,9 @@ uint8 ASocket::init(uint8 protocol, uint16 srcPort, uint8 flag )
 
 void ASocket::sendCommand(uint8 command)
 {
+	if(_sock == 255)
+		return;
+	
 	IINCHIP_WRITE(Sn_CR(_sock),command);
 	
     while( IINCHIP_READ(Sn_CR(_sock)) ) 
@@ -122,6 +130,9 @@ void ASocket::send() // Send Packet
 {
 //	D_ASOCKET(Serial.print("send ptr="));
 //	D_ASOCKET(Serial.println(_write_ptr,DEC));
+
+	if(isClosed())
+		return;
 	
 	
 	//Write out pointer to W5100
@@ -135,6 +146,9 @@ void ASocket::send() // Send Packet
 
 uint8 ASocket::isSendCompleteUDP()
 {
+	if(isClosed())
+		return 1;
+	
 	if( (IINCHIP_READ(Sn_IR(_sock)) & Sn_IR_SEND_OK) != Sn_IR_SEND_OK )  {
 		if (IINCHIP_READ(Sn_IR(_sock)) & Sn_IR_TIMEOUT) {
 			
@@ -151,7 +165,9 @@ uint8 ASocket::isSendCompleteUDP()
 
 uint8 ASocket::isSendCompleteTCP()
 {
-
+	if(isClosed())
+		return 1;
+		
 /* +2008.01 bj */	
 	if ( (IINCHIP_READ(Sn_IR(_sock)) & Sn_IR_SEND_OK) != Sn_IR_SEND_OK ) 
 	{
@@ -187,6 +203,9 @@ void ASocket::write_encode(uint8 * buf_in, uint16 len) // write data into send b
 // write data into send buffer
 uint16 ASocket::write(uint8 * buf, uint16 len)
 {
+	if(isClosed())
+		return 0;
+		
 	uint8 s=0;
 	uint16 freesize=0;
 
@@ -222,7 +241,7 @@ uint16 ASocket::write(char * buf)
 // read data into read buffer
 void ASocket::read(uint8 * buf, uint16 len)
 {
-	if ( len > 0 )
+	if ( len > 0 &&  !isClosed())
 	{
 		_read_ptr = IINCHIP_READ(Sn_RX_RD0(_sock));
     	_read_ptr = ((_read_ptr & 0x00ff) << 8) + IINCHIP_READ(Sn_RX_RD0(_sock) + 1);
@@ -249,7 +268,6 @@ void ASocket::read(uint8 * buf, uint16 len)
 		IINCHIP_WRITE((Sn_RX_RD0(_sock) + 1),(uint8)(_read_ptr & 0x00ff));
 		
 		sendCommand(Sn_CR_RECV);
-
 	}
 }
 
@@ -260,7 +278,7 @@ void ASocket::readSkip(uint16 count)
 
 uint16 ASocket::available() {
   
-  if(status() == SOCK_CLOSED){
+  if(isClosed()){
 	  return 0;
   }
     
@@ -274,9 +292,10 @@ uint16 ASocket::available() {
 }
 
 uint8 ASocket::status() {
+ 
   if(_sock != 255)
   {
-  	return IINCHIP_READ(Sn_SR(_sock));
+  	return getSn_SR(_sock);
   }
   return SOCK_CLOSED;
 
@@ -286,6 +305,9 @@ uint8 ASocket::status() {
 // Establish TCP connection (Active connection)
 void ASocket::connectTCP(uint8 * addr, uint16 dstPort)
 {
+	if(isClosed())
+		return;
+		
 	// set destination IP
 	IINCHIP_WRITE(Sn_DIPR0(_sock),addr[0]);
 	IINCHIP_WRITE((Sn_DIPR0(_sock) + 1),addr[1]);
@@ -300,8 +322,16 @@ void ASocket::connectTCP(uint8 * addr, uint16 dstPort)
 uint8 ASocket::isConnectedTCP()
 {
   uint8_t s = status();
-  return !(s == SOCK_LISTEN || s == SOCK_CLOSED || (s == SOCK_CLOSE_WAIT && !available()));
+//  D_ASOCKET(Serial.print("Status: "));
+//  D_ASOCKET(Serial.println(s,DEC));
+//  return !(s == SOCK_LISTEN || s == SOCK_FIN_WAIT || s == SOCK_CLOSED || (s == SOCK_CLOSE_WAIT && !available()));
+    return (s == SOCK_ESTABLISHED || (s == SOCK_CLOSE_WAIT && available()));
+}
 
+uint8 ASocket::isClosingTCP()
+{
+  uint8_t s = status();
+  return (s == SOCK_FIN_WAIT || (s == SOCK_CLOSE_WAIT && !available()));
 }
 
 uint8 ASocket::isClosed()
@@ -312,7 +342,7 @@ uint8 ASocket::isClosed()
 // disconnect the connection
 void ASocket::disconnectTCP()
 {
-	if(_sock != 255)
+	if(!isClosed())
 	{
 		sendCommand(Sn_CR_DISCON);
 	}
@@ -321,6 +351,9 @@ void ASocket::disconnectTCP()
  // New TCP Packet
 void ASocket::beginPacketTCP()
 {
+	if(isClosed())
+		return;
+		
 	//Initialize the write pointer
 	_write_ptr = IINCHIP_READ(Sn_TX_WR0(_sock));
     _write_ptr = ((_write_ptr & 0x00ff) << 8) + IINCHIP_READ(Sn_TX_WR0(_sock) + 1);
@@ -349,6 +382,9 @@ uint8 ASocket::listenTCP()
 // Receive a UDP Packet
 uint16 ASocket::beginRecvUDP(uint8 * addr, uint16  *port)
 {
+	if(isClosed())
+		return 0;
+		
 	uint8 head[8];
 	uint16 data_len=0;
 	
@@ -374,6 +410,9 @@ uint16 ASocket::beginRecvUDP(uint8 * addr, uint16  *port)
 // New UDP Packet
 void ASocket::beginPacketUDP(uint8 * addr, uint16 port)
 {
+	if(isClosed())
+		return;
+		
 	IINCHIP_WRITE(Sn_DIPR0(_sock),addr[0]);
 	IINCHIP_WRITE((Sn_DIPR0(_sock) + 1),addr[1]);
 	IINCHIP_WRITE((Sn_DIPR0(_sock) + 2),addr[2]);
