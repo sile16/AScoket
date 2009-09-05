@@ -228,7 +228,7 @@ void ASocket::write(const uint8_t *buf, size_t len)
 //	D_ASOCKET(Serial.print(" len: "));
 //	D_ASOCKET(Serial.println(len,DEC));
 	write_data(_sock, (uint8 *) buf, (uint8 *)_write_ptr, len);
-	//_write_ptr +=len;
+	_write_ptr +=len;
 	
 //	return len;
 } 
