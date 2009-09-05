@@ -17,14 +17,14 @@
  #define D_ASOCKET(msg) 
 #endif
 
-
+#include "Print.h"
 
 extern "C" {
 	#include "utility/types.h"
 	#include "utility/w5100.h"
 }
 
-class ASocket{
+class ASocket : public Print {
 	private:
 		SOCKET _sock;
 		uint16 _write_ptr;
@@ -40,8 +40,14 @@ class ASocket{
 		void close(); // Close socket, release back into pool
 		void send();  // Send Packet regardless of type
 		uint8 status();   //0 - success, 1-timeout, 2 - still processing
-		uint16 write(uint8 * buf, uint16 len); // write data into send buffer
-		uint16 write(char * buf); // write data into send buffer
+//		uint16 write(uint8 * buf, uint16 len); // write data into send buffer
+//		uint16 write(char * buf); // write data into send buffer
+	
+		virtual void write(uint8_t);
+        virtual void write(const char *str);
+        virtual void write(const uint8_t *buf, size_t size);
+  
+		
 		void write_encode(uint8 * buf, uint16 len); // write data encoded into ASCII HEX to send buffer		
 		void read(uint8 * buf, uint16 len);  // read data from read buffer
 		void readSkip(uint16 len);  //skip over data in the read buffer

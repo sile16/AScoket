@@ -201,10 +201,10 @@ void ASocket::write_encode(uint8 * buf_in, uint16 len) // write data into send b
 }
 
 // write data into send buffer
-uint16 ASocket::write(uint8 * buf, uint16 len)
+void ASocket::write(const uint8_t *buf, size_t len)
 {
 	if(isClosed())
-		return 0;
+		return;
 		
 	uint8 s=0;
 	uint16 freesize=0;
@@ -220,7 +220,7 @@ uint16 ASocket::write(uint8 * buf, uint16 len)
 		s = status();
 		if ((s != SOCK_ESTABLISHED) && (s != SOCK_CLOSE_WAIT) && (s != SOCK_UDP))
 		{
-			return 0;
+			return;
 		}
 	} while (freesize < len);  
 //	D_ASOCKET(Serial.print("Write: ptr: "));
@@ -228,14 +228,19 @@ uint16 ASocket::write(uint8 * buf, uint16 len)
 //	D_ASOCKET(Serial.print(" len: "));
 //	D_ASOCKET(Serial.println(len,DEC));
 	write_data(_sock, (uint8 *) buf, (uint8 *)_write_ptr, len);
-	_write_ptr +=len;
+	//_write_ptr +=len;
 	
-	return len;
+//	return len;
 } 
 
-uint16 ASocket::write(char * buf)
+void ASocket::write(const char * buf)
 {
 	return write((uint8*)buf,strlen(buf));
+}
+
+void ASocket::write(uint8_t buf)
+{
+	return write((uint8*)&buf,1);
 }
 
 // read data into read buffer
