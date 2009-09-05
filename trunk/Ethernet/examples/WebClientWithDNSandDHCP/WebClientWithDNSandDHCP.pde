@@ -47,10 +47,22 @@ void setup()
     Serial.print("dns server ip: ");
     printArray(&Serial, ".", buffer, 4, 10);
     
+    
+    //// Do DNS Lookup
+    
     googleDns.init("google.com", buffer);  //Buffer contains the IP address of the DNS server
     googleDns.resolve();
+   
+    int results;
+       
+    while(!(results=googleDns.finished())) ;  //wait for DNS to resolve the name
     
-    while(!googleDns.finished()) ;  //wait for DNS to resolve the name
+    if(results != 1)
+    {
+      Serial.print("DNS Error code: ");
+      Serial.print(results,DEC);
+    }
+    
     
     googleDns.getIP(buffer);  //buffer now contains the IP address for google.com
     Serial.print("Google IP address: ");

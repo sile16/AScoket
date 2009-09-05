@@ -1,13 +1,15 @@
+extern "C" {
+  #include "types.h"
+  #include "w5100.h"
+  #include "string.h"
+}
+
+#include "WProgram.h"
+
 #include "Ethernet.h"
 #include "Client.h"
 #include "Server.h"
 
-#include "string.h"
-
-extern "C" {
-	#include "utility/types.h"
-	#include "utility/w5100.h"
-}
 
 Client::Client(uint8_t sock) {
   _as.init(sock);
@@ -23,12 +25,15 @@ uint8_t Client::connect() {
   if(!_as.initTCP(0)) {    //0 means select source port automatically
   		return 0;
   }
-    
+  
   _as.connectTCP(_ip,_port);
     
-  while (!_as.isConnectedTCP()) {
-    if (_as.isClosed())
+  while (status() != SOCK_ESTABLISHED) {
+    delay(1);
+    if (status() == SOCK_CLOSED) {
+  		_as.close();
       return 0;
+    }
   }
   
   return 1;
@@ -68,19 +73,31 @@ void Client::flush() {
 void Client::stop() {
 
   SOCKET temp_socket = _as.getSocket();
+  
   if( temp_socket < MAX_SOCK_NUM)
   { 
- 	 EthernetClass::_server_port[temp_socket] = 0;
-  }
+	    EthernetClass::_server_port[temp_socket] = 0;
   
-  _as.disconnectTCP();
-  _as.close();
+		// attempt to close the connection gracefully (send a FIN to other side)
+		_as.disconnectTCP();
+		unsigned long start = millis();
+
+		// wait a second for the connection to close
+		while (status() != SOCK_CLOSED && millis() - start < 1000)
+		  delay(1);
+
+		// if it hasn't closed, close it forcefully
+		if (status() != SOCK_CLOSED)
+		  _as.close();
+	}
 }
 
 uint8_t Client::connected() {
-//  uint8_t s = status();
-//  return !(s == SOCK_LISTEN || s == SOCK_CLOSED || s == SOCK_FIN_WAIT || (s == SOCK_CLOSE_WAIT && !available()));
-	return _as.isConnectedTCP();
+	
+    uint8_t s = status();
+   
+    return !(s == SOCK_LISTEN || s == SOCK_CLOSED || s == SOCK_FIN_WAIT ||
+      (s == SOCK_CLOSE_WAIT && !available()));
 }
 
 
