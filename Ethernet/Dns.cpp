@@ -38,7 +38,7 @@ uint8_t DnsClass::resolve()
 //	Serial.print("Socket init");
 	if( ! _as.initUDP(0))               //set for UDP, allocate socket, no flags
 	{	
-		Serial.print("Error1");
+		//Serial.print("Error1");
 		return 0;
 	}
 		 
@@ -95,6 +95,7 @@ uint8_t DnsClass::finished()
 			Serial.print("DNS error = 0x");
 			Serial.println(buf[3],HEX);
 			_as.close() ;
+			junk += 0x10;  //add a 0x10 to the return code to indicate a dns error
 			return junk;
 		}
 		
@@ -121,12 +122,12 @@ uint8_t DnsClass::finished()
 		
 		//No A Records founds error
 		_as.close();
-		return 2;  //FAILED
+		return 2;  //FAILED No Records Found
 		
 	} //if( getSn_RX_RSR(_sock) > 0 )
 	else if(millis() - _startTime > DNS_TIMEOUT) {
 		_as.close();
-		return 3;  //Timeout
+		return 3;  //Failed Timeout
 	}
 	return 0; //We are not finished yet so return 0;
 }

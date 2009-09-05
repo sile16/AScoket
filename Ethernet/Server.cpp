@@ -16,7 +16,9 @@ Server::Server(uint16_t port)
 
 void Server::begin()
 {
-/*  for (int sock = 0; sock < MAX_SOCK_NUM; sock++) {
+//orignal version
+/*  
+ * for (int sock = 0; sock < MAX_SOCK_NUM; sock++) {
     Client client(sock);
     if (client.status() == SOCK_CLOSED) {
       socket(sock, Sn_MR_TCP, _port, 0);
@@ -24,29 +26,30 @@ void Server::begin()
       EthernetClass::_server_port[sock] = _port;
       break;
     }
-  } */
-  
-  if(_as.initTCP(_port))
+  } 
+*/
+//modified version for ASocket
+  ASocket as;
+
+  if(as.initTCP(_port))
   {
-  	_as.listenTCP();
-	EthernetClass::_server_port[_as.getSocket()] = _port;
+  	as.listenTCP();
+	EthernetClass::_server_port[as.getSocket()] = _port;
   }
 }
 
 void Server::accept()
 {
-  uint8 listening = 0;
+  int listening = 0;
   
-  for (SOCKET sock = 0; sock < MAX_SOCK_NUM; sock++) {
-    _as.init(sock);
+  for (int sock = 0; sock < MAX_SOCK_NUM; sock++) {
+    Client client(sock);
     
     if (EthernetClass::_server_port[sock] == _port) {
-      if (_as.status() == SOCK_LISTEN) {
+      if (client.status() == SOCK_LISTEN) {
         listening = 1;
-      } else if (_as.isClosingTCP()) {
-	//	_as.disconnectTCP();
-        _as.close();
-		EthernetClass::_server_port[sock] = 0;
+      } else if (client.status() == SOCK_CLOSE_WAIT && !client.available()) {
+        client.stop();
       }
     } 
   }
@@ -62,7 +65,8 @@ Client Server::available()
   
   for (int sock = 0; sock < MAX_SOCK_NUM; sock++) {
     Client client(sock);
-    if (EthernetClass::_server_port[sock] == _port && client) { //  client.status() == SOCK_ESTABLISHED) {
+    if (EthernetClass::_server_port[sock] == _port &&
+        client.status() == SOCK_ESTABLISHED) {
       if (client.available()) {
         // XXX: don't always pick the lowest numbered socket.
         return client;
