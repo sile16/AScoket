@@ -285,7 +285,7 @@ u_char DhcpClass::parseDHCPResponse(u_long responseTimeout)
                 case dhcpMessageType :
                     opt_len = *p++;
                     type = *p;
-					Serial.print("Found Type");
+//				Serial.print("Found Type");
                     break;
                     
                 case subnetMask :
