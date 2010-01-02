@@ -1,4 +1,4 @@
-#include <Ethernet.h>
+#include <AEthernet.h>
 #include "Dhcp.h"
 #include "Dns.h"
 

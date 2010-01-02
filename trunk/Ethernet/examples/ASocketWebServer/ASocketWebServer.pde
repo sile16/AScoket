@@ -4,7 +4,7 @@
  * A simple web server that shows the value of the analog input pins.
  */
 
-#include <Ethernet.h>
+#include <AEthernet.h>
 #include <ASocket.h>
 
 //Different Network States
@@ -66,7 +66,7 @@ uint8 stateMachine(ASocket &mysocket, uint8 mystate)
    
     case LISTENING:
     
-        if(mysocket.available()) {   //check to see if any data is available to read
+        if(!mysocket.available()) {   //check to see if any data is available to read
           return LISTENING;
         }
         listening=false;      //Since this was the lisetining socket but it now has a connection we don't have any listening sockets.

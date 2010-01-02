@@ -2,8 +2,8 @@
 #define Ethernet_h
 
 #include <inttypes.h>
-#include "Client.h"
-#include "Server.h"
+#include "AClient.h"
+#include "AServer.h"
 
 class EthernetClass {
 private:

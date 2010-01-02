@@ -1,4 +1,4 @@
-#include <Ethernet.h>
+#include <AEthernet.h>
 
 #define SERVER_CONNECT    0
 #define SERVER_CONNECTING 1
