@@ -3,7 +3,7 @@ extern "C" {
   #include "w5100.h"
 }
   
-#include "Ethernet.h"
+#include "AEthernet.h"
 
 // XXX: don't make assumptions about the value of MAX_SOCK_NUM.
 //uint8_t EthernetClass::_state[MAX_SOCK_NUM] = { 0, 0, 0, 0 };

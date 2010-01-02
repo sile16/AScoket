@@ -6,9 +6,9 @@ extern "C" {
 
 #include "WProgram.h"
 
-#include "Ethernet.h"
-#include "Client.h"
-#include "Server.h"
+#include "AEthernet.h"
+#include "AClient.h"
+#include "AServer.h"
 
 
 Client::Client(uint8_t sock) {

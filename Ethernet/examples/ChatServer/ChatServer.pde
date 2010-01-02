@@ -5,7 +5,7 @@
  * connected clients.  To use telnet to 10.0.0.177 and type!
  */
 
-#include <Ethernet.h>
+#include <AEthernet.h>
 
 // network configuration.  gateway and subnet are optional.
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
