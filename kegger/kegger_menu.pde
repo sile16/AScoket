@@ -131,12 +131,7 @@ void showMenu(int state){
       if (prevState == 2) persist.kegTemp = newKegTemp;
       
       savePersist();
-      
-      delay(3000);
-      currState = 0;
-      prevState = 0;
-      showMenu(currState);
-      
+
       break;
       
     /********************
