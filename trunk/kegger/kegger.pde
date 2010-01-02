@@ -1,10 +1,11 @@
-#include <Ethernet.h>
+#include <AEthernet.h>
 
 #include <LCD_I2C.h>
 #include <stdio.h>
 #include <Wire.h>
 #include <EEPROM.h>
 #include <avr/interrupt.h>
+#include <avr/signal.h>
 #include <avr/io.h>
 #include "kegger.h"
 
@@ -112,11 +113,12 @@ static struct{
 
    word kegTareFull;
    word kegTareEmpty;
-   
+   byte kegType;
+   word kegToWeight;
+  
    //Adding network stuff towards end as this is the most unstable part.
    byte mac[6];            //MAC Address, should be unique to every keggorator
    
- 
    // Keep server at the end of persist, this is becuase the network coded doesn't send this var since it's big and uneeded.
    char server[50];        //Server hostname to send Updates to.
  
@@ -129,6 +131,9 @@ volatile static byte timer_status = 0;
 volatile static byte timer_count = 0;
 static byte tempByte;
 word scale_volts;
+volatile static word flowMeterCount;
+word flowMeterTotal=0;
+boolean isDrinking=0;
 
 #ifdef ETHERNET
 #define NETWORK_VERSION  1
@@ -184,6 +189,20 @@ ISR(TIMER2_OVF_vect) {  //Every 4 ms
   }
   
 }  //ISR(TIME2_OVF_vect)
+
+
+/************************************
+ * interrupt0            
+ *
+ * Called for every pulse of the flow meter
+ *
+ ************************************/
+void interrupt0()
+{
+ flowMeterCount++;
+}
+
+
 
 
 /************************************
@@ -317,6 +336,10 @@ void setup()                    // run once, when the sketch starts
   LCD.init(LCD_ENABLE_PIN,LCD_CONTRAST_PIN,LCD_I2C_ADDR,persist.contrast); 
   showMenu(currState); 
   
+  //Setup External interrupt0
+  attachInterrupt(0, interrupt0, RISING);
+  
+  
   //Timer2 Settings: Timer Prescaler /256,    16000000  / 256 = 625000 HZ =  62500 HZ / 250 =  250 HZ or every 4ms for the overflow timer
   TCCR2B |= (1<<CS22) | (1<<CS21);    // turn on CS22 and CS21 bits, sets prescaler to 256
   TCCR2B &= ~(1<<CS20);    // make sure CS20 bit is off
@@ -327,6 +350,12 @@ void setup()                    // run once, when the sketch starts
   TIMSK2 |= (1<<TOIE2) | (0<<OCIE2A);	  //Timer2 Overflow Interrupt Enable
   TCNT2 = INIT_TIMER_COUNT;   //sets the starting value of the timer
   sei();  //Global interrupt enable
+  
+
+
+  
+  
+  
 }   //setup()
 
 

@@ -9,108 +9,7 @@ void   loop()                     // run over and over again
 
  
 #ifdef ETHERNET
-
-
-  switch(networkState){
-     case DNS_RESOLVE:
-       Serial.println("=====================================================");
-       Serial.println("DNS Resolve");
-       if(Dns.resolve()) {
-         networkState=DNS_WORKING;
-         Serial.println("DNS Connected");
-       }
-       else {
-         networkState=NET_IDLE;
-         Serial.println("DNS failed to connect");
-         break;
-       }      
-
-    case DNS_WORKING:
-       tempByte = Dns.finished();
-       if(tempByte == 1) {//success
-         networkState = DNS_SUCCESS;
-       }
-       else if(tempByte > 1) { //Failure
-         Serial.println("DNS Error");
-         networkState = NET_IDLE;   
-       }
-       break;
-       
-    case DNS_SUCCESS:
-       Dns.getIP(server_ip);
-       Serial.print("DNS IP: ");
-       printArray(&Serial, ".", server_ip, 4, 10);
-       if(as.initTCP(0)) {
-         networkState = SERVER_CONNECT;
-       }
-       else{
-         networkState = NET_IDLE;
-         Serial.println("TCP init failed");
-       }
-       break;
-       
-    case SERVER_CONNECT:
-       Serial.println("connecting...");
-       as.connectTCP(server_ip,80);
-       networkState = SERVER_CONNECTING;
-       break; 
-       
-    case SERVER_CONNECTING:
-       if(as.isConnectedTCP())
-       {
-         Serial.println("Connected");
-         networkState = SERVER_SEND;
-         as.beginPacketTCP();
-       }
-       else if (as.isClosed())
-       {
-         Serial.println("Connect failed");
-    //     as.disconnectTCP();
-         as.close();
-         networkState = NET_IDLE;
-       }
-       break;
-       
-    case SERVER_SEND:
-      
-      as.write("GET /kegger/?D=");  //write header
-      tempByte = NETWORK_VERSION;
-      as.write_encode((uint8*)&tempByte,1);  //write out network protocol version
-      as.write_encode((uint8*)&currTemp,2);     //write temperature
-      as.write_encode((uint8*)&scale_volts,2);   //write weight 
-      as.write_encode((uint8*)&persist,sizeof(persist) - sizeof(persist.server));
-      as.write(" HTTP/1.0\nHOST: ");  //write header
-      as.write((uint8*)persist.server,strlen(persist.server));  //write server hostname
-      as.write("\n\n");
-      as.send();
-      
-      networkState = SERVER_SEND_COMPLETE;
-      break;
-      
-      case SERVER_SEND_COMPLETE:
-        if(as.isSendCompleteTCP())
-        {
-          networkState = SERVER_RECEIVE;
-        }
-      break;
-      
-      case SERVER_RECEIVE:
-        if(as.isConnectedTCP())
-        {
-           if(as.available()){
-             as.read(&tempByte,1);
-             Serial.print(tempByte,BYTE);
-           }
-        }
-        else {
-          as.disconnectTCP();
-          as.close();
-          networkState = NET_IDLE;
-        }
-       break;  
-  
-  };  //switch(networkState){ 
-     
+kegger_net();
 #endif   
  
 //**********************************************************************
@@ -142,7 +41,9 @@ void   loop()                     // run over and over again
        prevButtonTransientState=tempByte;   //
     }
     
-  } //if(timer_status & 0x01 )   5ms Timer
+  } //if(timer_status & 0x01 ) //every 4 ms
+    
+  
   
 //**********************************************************************
 //*******  Timer 2
@@ -204,11 +105,16 @@ void   loop()                     // run over and over again
 
 #ifdef ETHERNET    
     
-    if(networkState == SERVER_CONNECTING || networkState == SERVER_RECEIVE)
-    {
-      Serial.print("Sock Status: ");
-      Serial.print(as.status(),DEC);
-    }
+   if(networkState == SERVER_CONNECTING || networkState == SERVER_RECEIVE)
+   {
+     Serial.print("Sock Status: ");
+     Serial.print(as.status(),DEC);
+   }
+    
+  if(networkState == NET_IDLE)
+  {
+     networkState = DNS_RESOLVE;
+  }
 #endif 
     
     tempByte = ! digitalRead(LED_STATUS2_PIN);
@@ -286,21 +192,35 @@ void   loop()                     // run over and over again
       compPower = true; 
   }
   else if(compPower){
-    if(currTemp.hi <= persist.kegTemp-3)
+    if(currTemp.hi < persist.kegTemp-persist.kegTempGap)
       compPower = false;
   }
   digitalWrite(COMPRESSOR_PIN,!compPower);
+  
+   /***************************
+   * FlowMeter Tracking
+   ***************************/
+   if(isDrinking) {
+     flowMeterTotal+=flowMeterCount;
+     if(flowMeterCount < 1) {
+       isDrinking = false;
+       //Todo: Send drink info to server
+     }
+   }
+   else if (flowMeterCount  > 0) {
+       flowMeterTotal = flowMeterCount;
+       isDrinking = true;
+   }
+   flowMeterCount=0;
 
   
-    
+  //update display every second.
   showMenu(currState);
   
-#ifdef ETHERNET
-  if(networkState == NET_IDLE)
-  {
-     networkState = DNS_RESOLVE;
+  //If we are in the saved state move into main menu after a 1 second delay.
+  if(currState == 4) {
+    currState = 0;
   }
-#endif
   
   
  }//endif 1 sec timer
