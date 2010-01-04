@@ -20,15 +20,18 @@ void showMenu(int state){
   char myUnit[8];
   temperature displayTemp;
   word displayWt;
-  word displayWtPercent;
+  byte displayWtPercent;
   byte displayWtPints;
+  
+  static word newValue;
 
   displayTemp=currTemp;  //displayTemp is Metric by default
   //Changes by Matt, don't use floating point numbers......  they use up a ton of code space.
   //displayWt=(((float)scale_volts*.009696)-14)*.45359237; //displayWt is converted to US then Metric here
-  displayWtPercent=(100*((long)scale_volts - persist.kegTareEmpty))/(persist.kegTareFull-persist.kegTareEmpty);
-  displayWtPints=(byte)((displayWtPercent*124)/100);
-  displayWt=(byte)((displayWtPercent*50)/100)+14;   //50kg of beer plus 14kg for the keg container
+  
+  displayWtPercent=(100*((unsigned long)scale_volts - persist.kegTareEmpty))/(persist.kegTareFull-persist.kegTareEmpty);
+  displayWtPints=((word)displayWtPercent*124)/100;
+  displayWt=displayWtPercent/2+14;   //50kg of beer plus 14kg for the keg container
     
   if (!persist.useMetric){
     sprintf(myUnit,"US");
@@ -60,16 +63,22 @@ void showMenu(int state){
         LCD.setContrast(--persist.contrast);
       else if ((prevState == 0) && (buttonPressed == 3)) {
         LCD.setContrast(++persist.contrast);
-#ifdef ETHERNET
-        if(ipAquired && networkState == NET_IDLE)
-        networkState = DNS_RESOLVE;
-#endif
       }
       
       buttonPressed = 255;
       //Generate strings for LCD output
-      sprintf(buf,"%02d.%02d%s %c  %d%-3c",displayTemp.hi,displayTemp.lo,tempUnit,compIcon,displayWtPercent,(char)0x25);
       LCD.setCursor(0,0);
+      
+      
+      if(displayTemp.hi < 0 && displayTemp.lo != 0) {
+        //if we are negative we have to invert the lo side
+        displayTemp.lo = 100 - displayTemp.lo;
+        displayTemp.hi++; 
+        if(displayTemp.hi == 0)
+        LCD.print("-");  
+      }
+      
+      sprintf(buf,"%02d.%02d%s %c %d%-3c ",displayTemp.hi,displayTemp.lo,tempUnit,compIcon,displayWtPercent,(char)0x25);
       LCD.print(buf);
 
       sprintf(buf,"%d%s %dpints ",displayWt,weightUnit,displayWtPints);
@@ -97,11 +106,11 @@ void showMenu(int state){
       // If up pressed, raise new temp var
       // Else if down button then lower temp var
       if ((prevState == 2) && (buttonPressed == 0))
-        newKegTemp++;
+        (int)newValue++;
       else if ((prevState == 2) && (buttonPressed == 2))
-        newKegTemp--;
+        (int)newValue--;
       buttonPressed = 255;  
-      sprintf(buf,"Set: %2d%-8s",newKegTemp,tempUnit);
+      sprintf(buf,"Set: %2d%-8s",(int)newValue,tempUnit);
       
       LCD.setCursor(0,0);
       LCD.print(buf);
@@ -128,7 +137,21 @@ void showMenu(int state){
       LCD.setCursor(0,1);
       LCD.print("                ");
       
-      if (prevState == 2) persist.kegTemp = newKegTemp;
+      if (prevState == 2) persist.kegTemp = newValue;
+      if (prevState == 15) persist.kegTareEmpty = scale_volts;
+      if (prevState == 7)  persist.useMetric = newValue;
+      if (prevState == 9)  persist.contrast = newValue;
+      if (prevState == 11)  persist.kegTempGap = newValue;
+      if (prevState == 17) persist.kegTareEmpty = newValue;
+      if (prevState == 13) persist.kegTareFull = newValue;
+      
+      if (prevState == 14) {
+        persist.kegTareFull = scale_volts;
+        persist.kegFlowCount = 0;
+        kegStatus |= 0x80;  //means there was a new keg.
+      }
+      
+      kegStatus |= 0x40;  //means configuration was updated
       
       savePersist();
 
@@ -139,7 +162,7 @@ void showMenu(int state){
      ********************/
     case 5:
       LCD.setCursor(0,0);
-      LCD.print("Kegerator v1.0");
+      LCD.print("Kegerator v1.1");
       LCD.setCursor(0,1);
       LCD.print("... Enjoy! ...");
       break;
@@ -148,17 +171,13 @@ void showMenu(int state){
      * SET UNIT         *
      ********************/
     case 6:
-
-      if (prevState == 7){
-        persist.useMetric = prevUseMetric;
-          if (!persist.useMetric)
-            sprintf(myUnit,"US");
-          else
-            sprintf(myUnit,"M");
-      }
+    
+    
+      newValue = persist.useMetric;
+      if (!persist.useMetric)
+         sprintf(myUnit,"US");
       else
-        prevUseMetric = persist.useMetric; // Gives ability to revert (w/ left arrow from below state)
-
+         sprintf(myUnit,"M");
     
       sprintf(buf,"SET UNIT [%2s]  ",myUnit);
     
@@ -174,8 +193,8 @@ void showMenu(int state){
     case 7:
     
       if ((prevState == 7) && ((buttonPressed == 0) || (buttonPressed == 2))){
-        persist.useMetric = !persist.useMetric;
-          if (!persist.useMetric)
+        newValue = !newValue;
+          if (!newValue)
             sprintf(myUnit,"US");
           else
             sprintf(myUnit,"M");
@@ -199,10 +218,7 @@ void showMenu(int state){
      ************************/
     case 8:
     
-      if (prevState == 9)
-        persist.contrast = prevContrast;
-      else
-        prevContrast = persist.contrast; // Gives ability to revert (w/ left arrow from below state)
+      newValue = persist.contrast; // Gives ability to revert (w/ left arrow from below state)
     
       sprintf(buf,"CONTRAST [%2d]  ",(int)persist.contrast);
       
@@ -218,12 +234,12 @@ void showMenu(int state){
     case 9:
     
       if (buttonPressed == 2)
-        LCD.setContrast(--persist.contrast);
+        LCD.setContrast(--newValue);
       else if (buttonPressed == 0)
-        LCD.setContrast(++persist.contrast);
+        LCD.setContrast(++newValue);
       
       buttonPressed = 255;  
-      sprintf(buf,"Set: %-10d",(int)persist.contrast);
+      sprintf(buf,"Set: %-10d",(int)newValue);
     
       LCD.setCursor(0,0);
       LCD.print(buf);
@@ -236,10 +252,7 @@ void showMenu(int state){
      ************************/
     case 10:
     
-      if(prevState == 11)
-        persist.kegTempGap = prevKegTempGap;
-      else
-        prevKegTempGap = persist.kegTempGap; // Gives ability to revert (w/ left arrow from below state)
+      newValue = persist.kegTempGap; // Gives ability to revert (w/ left arrow from below state)
     
       sprintf(buf,"TEMP GAP [%2d%s]",(int)persist.kegTempGap,tempUnit);
       
@@ -254,13 +267,13 @@ void showMenu(int state){
      ************************/
     case 11:
 
-      if ((buttonPressed == 2) && (persist.kegTempGap > 0))
-        persist.kegTempGap = persist.kegTempGap--;
-      else if ((buttonPressed == 0) && (persist.kegTempGap <10))
-        persist.kegTempGap = persist.kegTempGap++;
+      if ((buttonPressed == 2) && (newValue > 1))
+        newValue--;
+      else if ((buttonPressed == 0) && (newValue <10))
+        newValue++;
 
       buttonPressed = 255;  
-      sprintf(buf,"Temp Gap: %2d%s ",(int)persist.kegTempGap,tempUnit);
+      sprintf(buf,"Temp Gap: %2d%s ",(int)newValue,tempUnit);
     
       LCD.setCursor(0,0);
       LCD.print(buf);
@@ -273,12 +286,9 @@ void showMenu(int state){
      ************************/
     case 12:
     
-      if(prevState == 13)
-        persist.kegTareFull = prevKegTareFull;
-      else
-        prevKegTareFull = persist.kegTareFull; // Gives ability to revert (w/ left arrow from below state)
+      newValue = persist.kegTareFull; // Gives ability to revert (w/ left arrow from below state)
     
-      sprintf(buf,"KEG RESET      ");
+      sprintf(buf,"KEG FULL      ");
       
       LCD.setCursor(0,0);
       LCD.print(buf);
@@ -291,20 +301,74 @@ void showMenu(int state){
      ************************/
     case 13:
 
-      if ((buttonPressed == 2) && (persist.kegTempGap > 0))
-        persist.kegTareFull = persist.kegTareFull--;
-      else if ((buttonPressed == 0) && (persist.kegTempGap < 255))
-        persist.kegTareFull = persist.kegTareFull++;
+      if ((buttonPressed == 2) )
+        newValue -= 25;
+      else if ((buttonPressed == 0))
+        newValue += 25;
 
       buttonPressed = 255;  
-      sprintf(buf,"Full Keg: %2d%s  ",(int)persist.kegTareFull,weightUnit);
+      sprintf(buf,"Full:  %7d ",(int)newValue);
     
       LCD.setCursor(0,0);
       LCD.print(buf);
       LCD.setCursor(0,1);
       LCD.print("X=Back  Save=O");
       break;
+      
+     /************************
+     * New Keg?              *
+     ************************/
+    case 14:
+         LCD.setCursor(0,0);
+         LCD.print("New Keg?       ");
+         LCD.setCursor(0,1);
+         LCD.print("X=Back   Yes=O");
+         break;
+    
+      
+     /************************
+     * Tare Scale            *
+     ************************/
+     case 15:
+         LCD.setCursor(0,0);
+         LCD.print("Tare Scale     ");
+         LCD.setCursor(0,1);
+         LCD.print("X=Back   Yes=O");
+         break;
+       
+    /************************
+     * SCALE Empty Adjust            *
+     ************************/
+    case 16:
+    
+      newValue = persist.kegTareEmpty; // Gives ability to revert (w/ left arrow from below state)
+    
+      sprintf(buf,"KEG Empty      ");
+      
+      LCD.setCursor(0,0);
+      LCD.print(buf);
+      LCD.setCursor(0,1);
+      LCD.print(buf2);
+      break;
 
+    /************************
+     * Scale Empty 2          *
+     ************************/
+    case 17:
+
+      if ((buttonPressed == 2) )
+        newValue -= 25;
+      else if ((buttonPressed == 0))
+        newValue += 25;
+
+      buttonPressed = 255;  
+      sprintf(buf,"Empty:  %7d",(int)newValue);
+    
+      LCD.setCursor(0,0);
+      LCD.print(buf);
+      LCD.setCursor(0,1);
+      LCD.print("X=Back  Save=O");
+      break;
 
   }  //switch
 

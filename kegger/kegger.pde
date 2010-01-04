@@ -1,4 +1,4 @@
-#include <AEthernet.h>
+#include <ASocket.h>
 
 #include <LCD_I2C.h>
 #include <stdio.h>
@@ -72,32 +72,31 @@
 //    NOTE: stateMenu[0][4] is ptr to state when LEFT is pressed
 //    Current Menu Order: 0<->1<->6<->8<->3<->0
 static int stateMenu[][4] = { {3,0,1,0},    //Screen 00: Idle
-                              {0,2,6,0},    //Screen 01: Set Temp
+                              {0,2,10,0},    //Screen 01: Set Temp
                               {2,4,2,1},    //Screen 02:   Set Temp 2
-                              {12,5,0,0},   //Screen 03: About
+                              {8,5,0,0},   //Screen 03: About
                               {0,0,0,0},    //Screen 04: Saved
                               {5,0,5,3},    //Screen 05:    About 2
-                              {1,7,8,0},    //Screen 06: Set Unit
+                              {16,7,8,0},    //Screen 06: Set Unit
                               {7,4,7,6},    //Screen 07:    Set Unit 2
-                              {6,9,10,0},   //Screen 08: Set Contrast
+                              {6,9,3,0},   //Screen 08: Set Contrast
                               {9,4,9,8},    //Screen 09:    Set Contrast 2
-                              {8,11,12,0},  //Screen 10: Set Temp Gap
+                              {1,11,14,0},  //Screen 10: Set Temp Gap
                               {11,4,11,10}, //Screen 11:    Set Temp Gap 2
-                              {10,13,3,0},  //Screen 12: Keg Reset/Tare
-                              {13,4,13,12}, //Screen 13:    Keg Reset/Tare 2
+                              {14,13,15,0},  //Screen 12: Keg Full
+                              {13,4,13,12}, //Screen 13:    Keg Full 2
+                              {10,4,12,0}, //Screen 14:    New Keg (tare full)
+                              {12,4,16,0}, //Screen 15:    Tare Scale (tare empty)
+                              {15,17,6,0}, //Screen 16:    Keg Empty
+                              {17,4,17,16}, //Screen 17:    Keg Empty 2
+                              
                             };
 static int currState = 0;
-static int prevState = currState;
+static int prevState = 0;
 static boolean compPower = true;
 
 temperature currTemp;
-static byte newKegTemp;
 static byte buttonPressed = 255;
-
-static byte prevContrast;
-static byte prevKegTempGap;
-static byte prevKegTareFull;
-static boolean prevUseMetric;
 
 static byte prevButtonTransientState = 0;
 static byte currButtonState=0;    //Current button state plus bit 4 used to keep track of transient changes. BUTTONS_CHANGED_FLAG
@@ -105,7 +104,7 @@ static byte currButtonState=0;    //Current button state plus bit 4 used to keep
 // persistent variable to store between power outage
 // Add variable to the end of this struct to avoid breaking current values stored in memory
 static struct{
-   byte kegTemp;
+   int8_t kegTemp;
    boolean useMetric;
    
    byte contrast;
@@ -113,27 +112,34 @@ static struct{
 
    word kegTareFull;
    word kegTareEmpty;
+   word kegFlowCount;
+   
    byte kegType;
    word kegToWeight;
+   byte reserved[4];   
   
    //Adding network stuff towards end as this is the most unstable part.
    byte mac[6];            //MAC Address, should be unique to every keggorator
    
    // Keep server at the end of persist, this is becuase the network coded doesn't send this var since it's big and uneeded.
-   char server[50];        //Server hostname to send Updates to.
+   char server[20];        //Server hostname to send Updates to.
  
 } persist;
 
 
 
 
-volatile static byte timer_status = 0;
+volatile static byte timer_status = 0x01 & 0x02 & 0x04 & 0x08 & 0x10;   //this will run each timer loop at the beginning to get things initialized.
 volatile static byte timer_count = 0;
+volatile static byte timer_count2 =0;
 static byte tempByte;
 word scale_volts;
-volatile static word flowMeterCount;
-word flowMeterTotal=0;
+volatile static word flowMeterCount=0;
+word flowMeterDrink;
+word lastDrink=0;
+byte kegStatus = 0;   //use 4 left most bits for keeping track of events   0x80  for a new keg
 boolean isDrinking=0;
+
 
 #ifdef ETHERNET
 #define NETWORK_VERSION  1
@@ -146,12 +152,16 @@ boolean isDrinking=0;
 #define SERVER_SEND            6
 #define SERVER_RECEIVE         7
 #define SERVER_SEND_COMPLETE   8
+#define NET_DHCP              9
+#define NET_DHCP_PROCESS      10
+#define NET_SETUP3            11
 #define NET_IDLE             255
 
-byte ipAquired = false;
-byte networkState = NET_IDLE;
+byte ipAcquired = false;
+byte networkState = NET_DHCP;
 byte server_dns[4] = {192,168,26,1};
 byte server_ip[4] = { 192, 168, 26, 30 }; // Google
+byte netFailCount=0;
 //byte server_subnet[4] = {255,255,255,0};
 
 
@@ -186,6 +196,17 @@ ISR(TIMER2_OVF_vect) {  //Every 4 ms
     timer_count=0;
     //Do it directly so no function calls from ISR
     PORTB ^= ( 0x01 << 0);  //Flash LED on Arduino pin 8 on Atmega328
+    
+    //increment our long timer
+    timer_count2++;
+    if((timer_count2 % 60 ) == 0){ //1 Minute
+      timer_status |= 8;
+    }
+    
+    if((timer_count2 % 240 ) == 0) { //4 Minutes
+      timer_status |= 0x10;
+      timer_count2=0;
+    }
   }
   
 }  //ISR(TIME2_OVF_vect)
@@ -226,25 +247,27 @@ void setup()                    // run once, when the sketch starts
   //Load persistent variable from EEPROM into persist struct.
   loadPersist();
   
-  
-  Serial.begin(115200);                    // connect to the serial port
+  Serial.begin(57200);                    // connect to the serial port
   Serial.println("Kegger Begin");
   Wire.begin();
+
 
 
 #ifdef INITIALIZE_PERSIST
   persist.kegTareFull = 10500;
   persist.kegTareEmpty = 500;
+  persist.kegFlowCount=0;
   //Initialize kegTempGap
   if ((int)persist.kegTempGap >10)
     persist.kegTempGap = 2;
+    
         
-  persist.mac[0] = 0xDE; 
-  persist.mac[1] = 0xAD;
-  persist.mac[2] = 0xBE;
-  persist.mac[3] = 0xEF;
-  persist.mac[4] = 0xFE;
-  persist.mac[5] = 0xED;
+  persist.mac[0] = 0x7A; 
+  persist.mac[1] = 0x2C;
+  persist.mac[2] = 0xF3;
+  persist.mac[3] = 0xA0;
+  persist.mac[4] = 0xA4;
+  persist.mac[5] = 0x1D;
   
   persist.server[0] = 's';
   persist.server[1] = 'i';
@@ -272,45 +295,8 @@ void setup()                    // run once, when the sketch starts
 
 #endif //#ifdef INITIALIZE_PERSIST
  
-#ifdef ETHERNET
-  //network setup
   
   
-  Serial.println("getting ip...");
-  
-  ipAquired = Dhcp.beginWithDHCP(persist.mac);
-//  Ethernet.begin(persist.mac,server_ip);
- 
-  if(ipAquired == 1)
-  {
-    byte buffer[6];
-    Serial.println("ip acquired...");
-  
-    Dhcp.getLocalIp(buffer);
-    Serial.print("ip address: ");
-    printArray(&Serial, ".", buffer, 4, 10);
-    
-    Dhcp.getSubnetMask(buffer);
-    Serial.print("subnet mask: ");
-    printArray(&Serial, ".", buffer, 4, 10);
-    
-    Dhcp.getGatewayIp(buffer);
-    Serial.print("gateway ip: ");
-    printArray(&Serial, ".", buffer, 4, 10);
-    
-    Dhcp.getDnsServerIp(server_dns);
-    Serial.print("DNS server ip: ");
-    printArray(&Serial, ".", server_dns, 4, 10); 
-    
-    Dns.init(persist.server,server_dns);
-    networkState = DNS_RESOLVE;
-    delay(3000);
-    
-  }
-  else{
-    Serial.println("unable to acquire ip address...");
-  }  //  if(result == 1) Ethernet connection
-#endif  //#ifdef ETHERNET
  
 
   // Temperature Sensor Init
@@ -323,7 +309,7 @@ void setup()                    // run once, when the sketch starts
   Wire.endTransmission();
   
   //Initialize the temp variables
-  currTemp.hi = newKegTemp = persist.kegTemp;
+  currTemp.hi = persist.kegTemp;
   currTemp.lo=0;
 
 
@@ -381,13 +367,27 @@ void savePersist()
 temperature ctof(temperature input)
 {
     temperature converted;
-    word hi,lo;
-  
-    hi = ((word)input.hi) * 18;     
-    lo = ((word)input.lo) * 18 + (hi % 10) * 100;
-    converted.hi = hi/10 + 32 + lo / 1000;
-    converted.lo = (lo % 1000) / 10;
-    return converted;
+    int16_t hi;
+    int16_t lo;
+    
+       //using coversion ratio of 18/10 + 32 
+    hi = ((short int)input.hi) * 18;     
+    //  Since we have multiplied by 18 the next step is to divide by 10, but first we want to save the mod of 10, then we have to multiply by 100 to get 10 digit resolution
+    lo = ((short int)input.lo) * 18 + (hi % 10) * 100;   
+    
+    //next we divide by 10 add 32, we also want to pull in the overflow of the lo value, normally the low value would be multiplied by just 100, but since we are also dividing by by that goes up to 1000 
+    converted.hi = hi/10 + 32 +lo/1000;
+    lo = (lo % 1000) / 10; 
+    if(lo < 0)
+    {
+	converted.lo = lo + 100;
+	converted.hi--;
+    }
+    else {
+	converted.lo = lo;
+    }
+
+    return converted; 
 }
  
 
