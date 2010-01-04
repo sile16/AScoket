@@ -20,6 +20,8 @@ kegger_net();
   {
     timer_status &= ~0x01; 
     
+
+    
     //  Read in current button values into tempByte
     tempByte =0;
     if( digitalRead(UP_BUTTON_PIN)){
@@ -79,6 +81,10 @@ kegger_net();
         if(currButtonState && buttonPressed < 4) {  //means there is at least one button pressed
           prevState = currState;
           currState = stateMenu[currState][buttonPressed];
+
+          if(currButtonState == 12) //both left & right buttons reset the LCD
+            LCD.init(LCD_ENABLE_PIN,LCD_CONTRAST_PIN,LCD_I2C_ADDR,persist.contrast); 
+          
           showMenu(currState);
           //Serial.print("Moved to state: ");
           //Serial.println(currState,DEC);
@@ -92,6 +98,8 @@ kegger_net();
     //Clear the transient change flag
     currButtonState &= ~BUTTONS_CHANGED_FLAG;  //clears bit 4
     
+
+    
   } //if(timer_status & 0x02)   20ms Timer
   
   
@@ -103,29 +111,23 @@ kegger_net();
   {
     timer_status &= ~0x04;
 
-#ifdef ETHERNET    
-    
-   if(networkState == SERVER_CONNECTING || networkState == SERVER_RECEIVE)
-   {
-     Serial.print("Sock Status: ");
-     Serial.print(as.status(),DEC);
-   }
-    
-  if(networkState == NET_IDLE)
-  {
-     networkState = DNS_RESOLVE;
-  }
-#endif 
-    
+
+   /***************************
+   * Flash Status Lights
+   ***************************/
     tempByte = ! digitalRead(LED_STATUS2_PIN);
     
     digitalWrite(LED_STATUS2_PIN, ! digitalRead(LED_STATUS2_PIN));
     digitalWrite(LED_PIN, ! digitalRead(LED_PIN));
  //   LCD.setBacklight(tempByte);
 
-#ifdef  SIMULATE
+
+   /***************************
+   * Read weight & temp
+   ***************************/
+  #ifdef  SIMULATE
   if(compPower) {   //simulate temp increasing by .1 degrees Celcius ever 1 second,  10 seconds for 1 degree
-    currTemp.lo -= 0x10;
+    currTemp.lo -= 10;
     if(currTemp.lo > 99) {
       currTemp.lo = 90;
       currTemp.hi--;
@@ -155,8 +157,17 @@ kegger_net();
   Wire.endTransmission();
   
   Wire.requestFrom(TP1_ADDR,2);
-  currTemp.hi = Wire.receive();
+  currTemp.hi = Wire.receive();  //sent as a signed byte
+  
+  //add this unsigned value to your hi value to get real temp.
+  //only top 4 bits are used
+  //i.e.  .0625 degrees = 0001 0000,  .5 degress = 1000 0000
+  //To use, first we shift right 4 bits, then each bit represents .0625 degrees so, normally we would just multiply by .0625
+  // we want to display .lo as the number to the right of the decimal with 2 digits, so .0625 degress would be displayed 62
+  //  so instead of multiplying by 0.0625 we just need to multipy by 6.25, 
+  //but we can't use floating point.  So we cast as a word and multiply by 625 and then divide by 100 since 625/100 = 6.25
   currTemp.lo = ((word)(Wire.receive() >> 4) * 625) / 100;
+   
   
   //  Serial.print("   Temp: ");
 //  Serial.print(curr_temp_hi,DEC);
@@ -178,42 +189,87 @@ kegger_net();
   //count1++;
 
 #endif
-
-  
-  
-  
-  /***************************
-   * Compressor On/Off Logic
-   ***************************/
-  if(!compPower){
-    // If the compressor is off, kick it on when currTemp is over the gap. Its kegTempGap-1 to accomodate for decimals
-    // Else if the compressor is on, leave it on until we're ** 2 degrees ** under the desired temp (kegTemp)
-    if(currTemp.hi > (persist.kegTemp + persist.kegTempGap-1))
-      compPower = true; 
-  }
-  else if(compPower){
-    if(currTemp.hi < persist.kegTemp-persist.kegTempGap)
-      compPower = false;
-  }
-  digitalWrite(COMPRESSOR_PIN,!compPower);
   
    /***************************
    * FlowMeter Tracking
    ***************************/
    if(isDrinking) {
-     flowMeterTotal+=flowMeterCount;
+     flowMeterDrink+=flowMeterCount;
      if(flowMeterCount < 1) {
        isDrinking = false;
-       //Todo: Send drink info to server
+       persist.kegFlowCount += flowMeterDrink/10;  //have to divide by 10 to fit a whole keg into a word variable
+       savePersist();
+       lastDrink = flowMeterDrink;
+       
+       Serial.print("I just poured a drink! : ");
+       Serial.println(flowMeterDrink);
+      
      }
    }
    else if (flowMeterCount  > 0) {
-       flowMeterTotal = flowMeterCount;
+       flowMeterDrink = flowMeterCount;
        isDrinking = true;
    }
    flowMeterCount=0;
+   
+   /***************************
+   * Compressor On/Off Logic , Check compressor once a minute to enforce a minimum of a 1 minute on/off time.
+   ***************************/
+if(timer_status & 0x08 ) { //1 minute timer
+  if(!compPower){
+    // If the compressor is off, kick it on when currTemp is over the gap. Its kegTempGap-1 to accomodate for decimals
+    // Else if the compressor is on, leave it on until we're ** 2 degrees ** under the desired temp (kegTemp)
+    if(currTemp.hi > (persist.kegTemp + persist.kegTempGap-1))
+    {
+      compPower = true; 
+      timer_status &= ~0x08;  //reset timer so we don't check compressor for 1 minute
+    }
+  }
+  else if(compPower){
+    if(currTemp.hi < persist.kegTemp-persist.kegTempGap) {
+      compPower = false;
+      timer_status &= ~0x08; //reset timer so we don't check compressor for 1 minute
+    }
+  }
+  digitalWrite(COMPRESSOR_PIN,!compPower);
+}
+   
+   
+   
+   /***************************
+   * Ethernet
+   ***************************/
 
+#ifdef ETHERNET      
+   if(networkState == SERVER_CONNECTING || networkState == SERVER_RECEIVE)
+   {
+     Serial.print("Sock Status: ");
+     Serial.print(as.status(),DEC);
+   }
+    
+  if(networkState == NET_IDLE)
+  {
+    if(!ipAcquired) {    //we don't have an IP lets retry DHCP
+      networkState = NET_DHCP;
+    }
+    else if(lastDrink) {  //we have a drink to upload
+      networkState = SERVER_CONNECT;
+    }
+    else if(netFailCount || timer_status & 0x10)  //we want to retry after 1 second on a failure or if it time update temp & voltage.
+    {
+      networkState = DNS_RESOLVE;
+    }
   
+    if(netFailCount > 15) {  //15 consecutive network failures.  Lets go back to DHCP
+      networkState = NET_DHCP;
+      netFailCount = 0;
+    }
+  }
+#endif
+  
+   /***************************
+   * LCD Menu Display
+   ***************************/
   //update display every second.
   showMenu(currState);
   
@@ -224,5 +280,34 @@ kegger_net();
   
   
  }//endif 1 sec timer
+ 
+ //**********************************************************************
+//*******  Timer 4
+//**********************************************************************
+
+//  if(timer_status & 0x08 ) //every Minute
+//  {
+//    timer_status &= ~0x08;
+    
+
+    
+
+    
+    
+//  } // if(timer_status & 0x08 ) //every Minute
+  
+//**********************************************************************
+//*******  Timer 5
+//**********************************************************************
+
+ // if(timer_status & 0x10 ) //every 4 Minutes
+///  {
+ //   timer_status &= ~0x10;
+    // This timer is handled inside of the 1 second timer
+    
+
+    
+    
+ // } //if(timer_status & 0x10 ) //every 4 Minutes
 
 } //loop()
