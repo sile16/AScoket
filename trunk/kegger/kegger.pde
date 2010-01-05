@@ -83,12 +83,14 @@ static int stateMenu[][4] = { {3,0,1,0},    //Screen 00: Idle
                               {9,4,9,8},    //Screen 09:    Set Contrast 2
                               {1,11,14,0},  //Screen 10: Set Temp Gap
                               {11,4,11,10}, //Screen 11:    Set Temp Gap 2
-                              {14,13,15,0},  //Screen 12: Keg Full
+                              {15,13,16,0},  //Screen 12: Keg Full
                               {13,4,13,12}, //Screen 13:    Keg Full 2
-                              {10,4,12,0}, //Screen 14:    New Keg (tare full)
-                              {12,4,16,0}, //Screen 15:    Tare Scale (tare empty)
-                              {15,17,6,0}, //Screen 16:    Keg Empty
+                              {10,18,15,0}, //Screen 14:    New Keg (tare full)
+                              {14,19,12,0}, //Screen 15:    Tare Scale 
+                              {12,17,6,0}, //Screen 16:    Keg Empty
                               {17,4,17,16}, //Screen 17:    Keg Empty 2
+                              {18,4,18,14}, //Screen 18:    New Keg Confrim
+                              {19,4,19,15}, //Screen 19:    Tare Confrim
                               
                             };
 static int currState = 0;
@@ -137,7 +139,7 @@ word scale_volts;
 volatile static word flowMeterCount=0;
 word flowMeterDrink;
 word lastDrink=0;
-byte kegStatus = 0;   //use 4 left most bits for keeping track of events   0x80  for a new keg
+byte kegStatus = 0;   //use 4 left most bits for keeping track of events   0x80  for a new keg, 0x40 to indicate 
 boolean isDrinking=0;
 
 

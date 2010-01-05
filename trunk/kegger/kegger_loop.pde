@@ -7,7 +7,6 @@
 void   loop()                     // run over and over again
 {
 
- 
 #ifdef ETHERNET
 kegger_net();
 #endif   
@@ -19,8 +18,6 @@ kegger_net();
   if(timer_status & 0x01 ) //every 4 ms
   {
     timer_status &= ~0x01; 
-    
-
     
     //  Read in current button values into tempByte
     tempByte =0;
@@ -201,7 +198,7 @@ kegger_net();
        savePersist();
        lastDrink = flowMeterDrink;
        
-       Serial.print("I just poured a drink! : ");
+       Serial.print("Pour : ");
        Serial.println(flowMeterDrink);
       
      }
@@ -212,27 +209,7 @@ kegger_net();
    }
    flowMeterCount=0;
    
-   /***************************
-   * Compressor On/Off Logic , Check compressor once a minute to enforce a minimum of a 1 minute on/off time.
-   ***************************/
-if(timer_status & 0x08 ) { //1 minute timer
-  if(!compPower){
-    // If the compressor is off, kick it on when currTemp is over the gap. Its kegTempGap-1 to accomodate for decimals
-    // Else if the compressor is on, leave it on until we're ** 2 degrees ** under the desired temp (kegTemp)
-    if(currTemp.hi > (persist.kegTemp + persist.kegTempGap-1))
-    {
-      compPower = true; 
-      timer_status &= ~0x08;  //reset timer so we don't check compressor for 1 minute
-    }
-  }
-  else if(compPower){
-    if(currTemp.hi < persist.kegTemp-persist.kegTempGap) {
-      compPower = false;
-      timer_status &= ~0x08; //reset timer so we don't check compressor for 1 minute
-    }
-  }
-  digitalWrite(COMPRESSOR_PIN,!compPower);
-}
+
    
    
    
@@ -252,7 +229,7 @@ if(timer_status & 0x08 ) { //1 minute timer
     if(!ipAcquired) {    //we don't have an IP lets retry DHCP
       networkState = NET_DHCP;
     }
-    else if(lastDrink) {  //we have a drink to upload
+    else if(lastDrink || kegStatus) {  //we have a drink to upload
       networkState = SERVER_CONNECT;
     }
     else if(netFailCount || timer_status & 0x10)  //we want to retry after 1 second on a failure or if it time update temp & voltage.
@@ -281,33 +258,32 @@ if(timer_status & 0x08 ) { //1 minute timer
   
  }//endif 1 sec timer
  
- //**********************************************************************
+//**********************************************************************
 //*******  Timer 4
 //**********************************************************************
 
-//  if(timer_status & 0x08 ) //every Minute
-//  {
-//    timer_status &= ~0x08;
-    
-
-    
-
-    
-    
-//  } // if(timer_status & 0x08 ) //every Minute
-  
-//**********************************************************************
-//*******  Timer 5
-//**********************************************************************
-
- // if(timer_status & 0x10 ) //every 4 Minutes
-///  {
- //   timer_status &= ~0x10;
-    // This timer is handled inside of the 1 second timer
-    
-
-    
-    
- // } //if(timer_status & 0x10 ) //every 4 Minutes
+  if(timer_status & 0x08 ) { //1 minute timer
+   timer_status &= ~0x08;  //reset timer so we don't check compressor for 1 minute
+   
+     /***************************
+     * Compressor On/Off Logic , Check compressor once a minute to enforce a minimum of a 1 minute on/off time.
+     ***************************/
+     
+    if(!compPower){
+      // If the compressor is off, kick it on when currTemp is over the gap. Its kegTempGap-1 to accomodate for decimals
+      // Else if the compressor is on, leave it on until we're ** 2 degrees ** under the desired temp (kegTemp)
+      if(currTemp.hi > (persist.kegTemp + persist.kegTempGap-1))
+      {
+        compPower = true; 
+       
+      }
+    }
+    else if(compPower){
+      if(currTemp.hi < persist.kegTemp-persist.kegTempGap) {
+        compPower = false;
+      }
+    }
+    digitalWrite(COMPRESSOR_PIN,!compPower);
+  } //  if(timer_status & 0x08 ) { //1 minute timer
 
 } //loop()
