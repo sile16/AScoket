@@ -134,7 +134,7 @@ inline void kegger_net()
       netFailCount=0;
       //write network version
       as.write("GET /kegger/?A=");  
-      tempByte = NETWORK_VERSION & kegStatus;
+      tempByte = NETWORK_VERSION | kegStatus;
       as.write_encode((uint8*)&tempByte,1);  //write out network protocol version
       
       //write mac address
